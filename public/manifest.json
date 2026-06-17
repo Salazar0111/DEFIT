@@ -1,0 +1,17 @@
+{
+  "name": "FitPlan",
+  "short_name": "FitPlan",
+  "description": "Tu app de fitness y nutrición personalizada",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#090b0f",
+  "theme_color": "#090b0f",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
