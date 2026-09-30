@@ -1,12 +1,18 @@
-// Proxy a la API de Anthropic. Solo usuarios con sesión de Supabase y con cuota disponible.
+// Estimación de calorías con IA. Solo usuarios con sesión de Supabase y con cuota disponible.
+// El cliente no envía prompts: solo una foto o el texto de un alimento.
 
 const MODEL = "claude-sonnet-5-5";
-const MAX_TOKENS = 600;
+const MAX_TOKENS = 500;
 const DAILY_LIMIT = 40;
-const MAX_BODY_BYTES = 1_500_000; // ~1 foto de 900px en base64 más texto
+const MAX_IMAGE_CHARS = 1_400_000; // base64 de una foto de ~900px
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY;
+
+const INSTRUCTIONS = `Eres nutricionista. Estima calorías y macronutrientes con valores realistas para porciones colombianas típicas cuando no se indique la cantidad.
+Responde SOLO con un objeto JSON, sin texto adicional ni markdown, con esta forma exacta:
+{"name":"nombre corto en español","kcal":número,"protein_g":número,"carbs_g":número,"fat_g":número,"portion":"porción estimada, ej: 1 plato ~350 g","food":true}
+Si no hay comida identificable, responde {"food":false}.`;
 
 async function supabaseFetch(path, token, init = {}) {
   return fetch(`${SUPABASE_URL}${path}`, {
@@ -20,19 +26,21 @@ async function supabaseFetch(path, token, init = {}) {
   });
 }
 
-// Solo se aceptan mensajes de usuario con texto o imágenes (sin system ni tools).
-function validMessages(messages) {
-  if (!Array.isArray(messages) || messages.length === 0 || messages.length > 4) return false;
-  return messages.every((m) => {
-    if (m?.role !== "user" && m?.role !== "assistant") return false;
-    if (typeof m.content === "string") return m.content.length <= 4000;
-    return (
-      Array.isArray(m.content) &&
-      m.content.length <= 4 &&
-      m.content.every((b) => b?.type === "text" || (b?.type === "image" && b.source?.type === "base64"))
-    );
-  });
+function buildMessage(body) {
+  if (body?.mode === "photo" && typeof body.image === "string" && body.image.length <= MAX_IMAGE_CHARS) {
+    return [
+      { type: "image", source: { type: "base64", media_type: "image/jpeg", data: body.image } },
+      { type: "text", text: `${INSTRUCTIONS}\n\nAnaliza la comida de esta foto.` },
+    ];
+  }
+  if (body?.mode === "text" && typeof body.query === "string") {
+    const q = body.query.trim().slice(0, 200);
+    if (q) return `${INSTRUCTIONS}\n\nAlimento: ${JSON.stringify(q)}`;
+  }
+  return null;
 }
+
+const num = (v, max) => Math.min(Math.max(Math.round(Number(v) * 10) / 10 || 0, 0), max);
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Método no permitido." });
@@ -48,11 +56,8 @@ export default async function handler(req, res) {
   const userResp = await supabaseFetch("/auth/v1/user", token);
   if (!userResp.ok) return res.status(401).json({ error: "Sesión inválida o expirada." });
 
-  if (JSON.stringify(req.body || {}).length > MAX_BODY_BYTES) {
-    return res.status(413).json({ error: "La imagen es demasiado grande." });
-  }
-  const { messages } = req.body || {};
-  if (!validMessages(messages)) return res.status(400).json({ error: "Solicitud inválida." });
+  const content = buildMessage(req.body);
+  if (!content) return res.status(400).json({ error: "Solicitud inválida o imagen demasiado grande." });
 
   const quotaResp = await supabaseFetch("/rest/v1/rpc/consume_ai_quota", token, {
     method: "POST",
@@ -71,14 +76,26 @@ export default async function handler(req, res) {
         "x-api-key": apiKey,
         "anthropic-version": "2023-06-01",
       },
-      body: JSON.stringify({ model: MODEL, max_tokens: MAX_TOKENS, messages }),
+      body: JSON.stringify({ model: MODEL, max_tokens: MAX_TOKENS, messages: [{ role: "user", content }] }),
     });
     const data = await response.json();
-    if (!response.ok) {
-      return res.status(502).json({ error: data?.error?.message || "Error del servicio de IA." });
+    if (!response.ok) return res.status(502).json({ error: "El servicio de IA no respondió bien. Intenta de nuevo." });
+
+    const text = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("");
+    const match = text.match(/\{[\s\S]*\}/);
+    const parsed = match ? JSON.parse(match[0]) : null;
+    if (!parsed || parsed.food === false) {
+      return res.status(422).json({ error: "No identifiqué comida. Prueba con otra foto o escríbela." });
     }
-    return res.status(200).json({ content: data.content });
-  } catch (error) {
-    return res.status(502).json({ error: "No se pudo contactar el servicio de IA." });
+    return res.status(200).json({
+      name: String(parsed.name || "Comida").slice(0, 80),
+      kcal: Math.round(num(parsed.kcal, 5000)),
+      protein_g: num(parsed.protein_g, 500),
+      carbs_g: num(parsed.carbs_g, 1000),
+      fat_g: num(parsed.fat_g, 500),
+      portion: String(parsed.portion || "").slice(0, 80),
+    });
+  } catch {
+    return res.status(502).json({ error: "No se pudo analizar. Intenta de nuevo." });
   }
 }

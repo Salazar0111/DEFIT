@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { UtensilsCrossed, Scale, Trophy } from "lucide-react";
+import { Trophy } from "lucide-react";
 import { supabase } from "./lib/supabase";
 import { applyPalette } from "./lib/palettes";
 import Shell from "./components/Shell";
@@ -8,6 +8,8 @@ import ProfileScreen from "./screens/ProfileScreen";
 import Placeholder from "./screens/Placeholder";
 import Onboarding from "./screens/Onboarding";
 import HomeScreen from "./screens/HomeScreen";
+import FoodScreen from "./screens/FoodScreen";
+import WeightScreen from "./screens/WeightScreen";
 
 // Solo en desarrollo: /?demo muestra la app con un perfil ficticio, sin iniciar sesión.
 // /?demo=nuevo arranca desde el cuestionario inicial.
@@ -24,7 +26,10 @@ const DEMO_PROFILE = params.get("demo") === "nuevo"
 export default function App() {
   const [session, setSession] = useState(undefined); // undefined = cargando
   const [profile, setProfile] = useState(null);
-  const [tab, setTab] = useState("home");
+  const [tab, setTab] = useState(() => {
+    const t = params.get("tab");
+    return ["home", "food", "weight", "challenges", "profile"].includes(t) ? t : "home";
+  });
   const [editingPlan, setEditingPlan] = useState(false);
 
   useEffect(() => {
@@ -35,6 +40,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (session === undefined) return;
     if (!session) { setProfile(null); setTab("home"); return; }
     if (DEMO) { setProfile(DEMO_PROFILE); return; }
     supabase.from("profiles").select("*").eq("id", session.user.id).single()
@@ -61,8 +67,8 @@ export default function App() {
   } else {
     const screens = {
       home: <HomeScreen profile={profile} onEditPlan={() => setEditingPlan(true)} />,
-      food: <Placeholder Icon={UtensilsCrossed} phase="Fase 3" title="Comida" text="Registra por foto, búsqueda o manual. La IA estima calorías y macros." />,
-      weight: <Placeholder Icon={Scale} phase="Fase 3" title="Peso" text="Tu registro de peso y su evolución en el tiempo." />,
+      food: <FoodScreen profile={profile} />,
+      weight: <WeightScreen profile={profile} onEditPlan={() => setEditingPlan(true)} />,
       challenges: <Placeholder Icon={Trophy} phase="Fase 4" title="Retos" text="Reta a alguien a cumplir su meta calórica. Progreso en tiempo real y medallas." />,
       profile: <ProfileScreen profile={profile} onChange={patchProfile} onEditPlan={() => setEditingPlan(true)} />,
     };

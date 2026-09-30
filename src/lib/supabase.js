@@ -6,8 +6,8 @@ export const supabase = createClient(
   { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }
 );
 
-// Llama al endpoint de IA con la sesión del usuario.
-export async function callAI(messages) {
+// Estima calorías con IA: { mode: "photo", image } o { mode: "text", query }.
+export async function estimateFood(payload) {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
   if (!token) throw new Error("Sesión expirada. Vuelve a iniciar sesión.");
@@ -15,10 +15,9 @@ export async function callAI(messages) {
   const resp = await fetch("/api/analyze", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ messages }),
+    body: JSON.stringify(payload),
   });
   const d = await resp.json().catch(() => ({}));
-  if (!resp.ok) throw new Error(d.error || `HTTP ${resp.status}`);
-  const txt = (d.content || []).filter((b) => b.type === "text").map((b) => b.text).join("");
-  return JSON.parse(txt.replace(/```json|```/g, "").trim());
+  if (!resp.ok) throw new Error(d.error || "No se pudo analizar. Intenta de nuevo.");
+  return d;
 }

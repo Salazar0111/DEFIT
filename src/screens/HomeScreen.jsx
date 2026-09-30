@@ -1,10 +1,14 @@
 import { motion } from "motion/react";
 import { SlidersHorizontal } from "lucide-react";
 import { fmt } from "../lib/plan";
+import { useFood } from "../lib/useFood";
+import { dayKey, totals } from "../lib/food";
 
 const ease = [0.16, 1, 0.3, 1];
 
-export default function HomeScreen({ profile, eaten = 0, onEditPlan }) {
+export default function HomeScreen({ profile, onEditPlan }) {
+  const { entries } = useFood(profile, dayKey(new Date(), profile.timezone));
+  const eaten = totals(entries).kcal;
   const target = profile.target_kcal || 0;
   const left = target - eaten;
   const pct = target ? Math.min(eaten / target, 1) : 0;
@@ -41,7 +45,6 @@ export default function HomeScreen({ profile, eaten = 0, onEditPlan }) {
         <Row label="Peso de partida" value={`${Number(profile.weight_kg).toLocaleString("es-CO")} kg`} last />
       </section>
 
-      <p className="caption" style={{ textAlign: "center" }}>El registro de comidas llega en la próxima fase.</p>
     </div>
   );
 }

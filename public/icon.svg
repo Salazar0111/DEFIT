@@ -1,5 +1,21 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
-  <rect width="192" height="192" rx="40" fill="#090b0f"/>
-  <rect width="192" height="192" rx="40" fill="#b5ff47"/>
-  <text x="96" y="130" font-family="Arial Black, sans-serif" font-size="110" font-weight="900" fill="#090b0f" text-anchor="middle">F</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="bg" cx="30%" cy="20%" r="95%">
+      <stop offset="0" stop-color="#1e3a8a"/>
+      <stop offset="0.55" stop-color="#0a1020"/>
+      <stop offset="1" stop-color="#05070b"/>
+    </radialGradient>
+    <linearGradient id="d" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#c9d7ff"/>
+    </linearGradient>
+    <radialGradient id="orb" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#4c8dff" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#4c8dff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <circle cx="380" cy="400" r="220" fill="url(#orb)"/>
+  <path d="M150 116h106c86 0 140 56 140 140s-54 140-140 140H150V116zm66 60v160h38c48 0 76-30 76-80s-28-80-76-80h-38z" fill="url(#d)"/>
+  <ellipse cx="170" cy="70" rx="200" ry="70" fill="#fff" fill-opacity=".06" transform="rotate(-18 170 70)"/>
 </svg>

@@ -4,6 +4,7 @@ import { Check, LogOut, SlidersHorizontal } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { AVATARS, avatarSrc } from "../lib/avatars";
 import { PALETTES } from "../lib/palettes";
+import Reminders from "../components/Reminders";
 
 export default function ProfileScreen({ profile, onChange, onEditPlan }) {
   const [saving, setSaving] = useState(false);
@@ -75,6 +76,8 @@ export default function ProfileScreen({ profile, onChange, onEditPlan }) {
           })}
         </div>
       </section>
+
+      <Reminders profile={profile} onChange={onChange} />
 
       <button className="btn btn-glass btn-block" onClick={onEditPlan}>
         <SlidersHorizontal size={18} strokeWidth={1.8} /> Ajustar mi plan
