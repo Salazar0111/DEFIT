@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+<defs><radialGradient id="bg" cx="35%" cy="25%" r="85%"><stop offset="0" stop-color="#e3f2ff"/><stop offset="1" stop-color="#9fd0ff"/></radialGradient><linearGradient id="s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6ec1ff"/><stop offset="1" stop-color="#2b8de0"/></linearGradient></defs>
+<circle cx="60" cy="60" r="60" fill="url(#bg)"/>
+<ellipse cx="60" cy="104" rx="30" ry="5" fill="#000" fill-opacity=".12"/>
+<path d="M60 16 C60 16 90 52 90 72 C90 90 76 102 60 102 C44 102 30 90 30 72 C30 52 60 16 60 16Z" fill="url(#s)"/><path d="M44 66 C44 56 50 48 52 46" stroke="#fff" stroke-opacity=".7" stroke-width="4" stroke-linecap="round" fill="none"/>
+<path d="M42 70 q5 5 10 0" stroke="#1a1414" stroke-width="2.6" fill="none" stroke-linecap="round"/><path d="M68 70 q5 5 10 0" stroke="#1a1414" stroke-width="2.6" fill="none" stroke-linecap="round"/><path d="M56 83 h8" stroke="#1a1414" stroke-width="2.6" stroke-linecap="round"/><text x="86" y="40" font-family="Helvetica" font-weight="700" font-size="14" fill="#1a1414" fill-opacity=".55">z</text><text x="94" y="30" font-family="Helvetica" font-weight="700" font-size="10" fill="#1a1414" fill-opacity=".4">z</text><ellipse cx="40" cy="80" rx="5" ry="3" fill="#ff7a93" fill-opacity=".45"/><ellipse cx="80" cy="80" rx="5" ry="3" fill="#ff7a93" fill-opacity=".45"/>
+<ellipse cx="42" cy="22" rx="26" ry="12" fill="#fff" fill-opacity=".14" transform="rotate(-20 42 22)"/>
+</svg>

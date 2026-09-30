@@ -1,11 +1,11 @@
 {
-  "name": "FitPlan",
-  "short_name": "FitPlan",
-  "description": "Tu app de fitness y nutrición personalizada",
+  "name": "DEFIT",
+  "short_name": "DEFIT",
+  "description": "Cuenta tus calorías y compite con los tuyos.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#090b0f",
-  "theme_color": "#090b0f",
+  "background_color": "#05070b",
+  "theme_color": "#05070b",
   "icons": [
     {
       "src": "/icon.svg",
