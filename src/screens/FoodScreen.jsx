@@ -7,6 +7,8 @@ import AddFood from "./AddFood";
 import { useFood } from "../lib/useFood";
 import { MEALS, dayKey, dayLabel, shiftDay, totals } from "../lib/food";
 import { fmt } from "../lib/plan";
+import { avatarSrc } from "../lib/avatars";
+import { foodReaction } from "../lib/buddy";
 
 const ease = [0.16, 1, 0.3, 1];
 
@@ -14,6 +16,7 @@ export default function FoodScreen({ profile }) {
   const today = dayKey(new Date(), profile.timezone);
   const [day, setDay] = useState(today);
   const [adding, setAdding] = useState(false);
+  const [reaction, setReaction] = useState(null);
   const { entries, loading, add, remove } = useFood(profile, day);
   const t = totals(entries);
   const target = profile.target_kcal || 0;
@@ -117,8 +120,26 @@ export default function FoodScreen({ profile }) {
             <Plus size={20} strokeWidth={2.2} /> Agregar comida
           </motion.button>
           <Sheet open={adding} onClose={() => setAdding(false)} title={day === today ? "Agregar comida" : `Agregar · ${dayLabel(day, today)}`}>
-            <AddFood demo={profile.id === "demo"} onSave={async (entry) => { await add(entry); setAdding(false); }} />
+            <AddFood demo={profile.id === "demo"} onSave={async (entry) => {
+              await add(entry);
+              setAdding(false);
+              // Tu personaje aparece y reacciona a la comida que acabas de guardar.
+              setReaction({ ...foodReaction({ before: t.kcal, after: t.kcal + entry.kcal, target }), key: Date.now() });
+              setTimeout(() => setReaction(null), 2600);
+            }} />
           </Sheet>
+          <AnimatePresence>
+            {reaction && (
+              <motion.div key={reaction.key} className="glass glass-strong" style={styles.reaction} role="status"
+                initial={{ y: 160, opacity: 0, x: "-50%" }} animate={{ y: 0, opacity: 1, x: "-50%" }} exit={{ y: 160, opacity: 0, x: "-50%" }}
+                transition={{ type: "spring", stiffness: 320, damping: 22 }} onClick={() => setReaction(null)}>
+                <motion.img src={avatarSrc(profile.avatar, reaction.mood)} alt="" width={64} height={64}
+                  animate={{ y: [0, -16, 0], rotate: reaction.mood === "party" ? [0, -10, 10, 0] : [0, 0] }}
+                  transition={{ duration: 0.6, delay: 0.25 }} style={{ width: 64, height: 64, borderRadius: "50%" }} />
+                <p style={{ fontWeight: 700 }}>{reaction.text}</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </>,
         document.body
       )}
@@ -152,6 +173,10 @@ const styles = {
   mealHead: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0 6px" },
   item: { display: "flex", alignItems: "center", gap: "var(--sp-3)", padding: "12px 0", borderTop: "1px solid var(--hairline)" },
   del: { width: 36, height: 36, borderRadius: "50%", display: "grid", placeItems: "center", color: "var(--text-2)", flexShrink: 0 },
+  reaction: {
+    position: "fixed", zIndex: 45, left: "50%", bottom: "calc(var(--safe-bottom) + 100px)", width: "calc(100% - 32px)", maxWidth: 440,
+    display: "flex", alignItems: "center", gap: "var(--sp-3)", padding: "12px 16px", borderRadius: "var(--r-lg)",
+  },
   fab: {
     position: "fixed", zIndex: 25, left: "50%", x: "-50%",
     bottom: "calc(var(--safe-bottom) + 96px)", padding: "0 22px", minHeight: 50, whiteSpace: "nowrap",

@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
-import { Crown, Plus, Swords, Check, X, Lock } from "lucide-react";
+import { Crown, Plus, Swords, Check, X, Lock, HandHeart, Zap, Flag, Trophy, Handshake, Medal as MedalIcon, CircleX } from "lucide-react";
+import { PersonSheetContent } from "../components/PersonCard";
 import Sheet from "../components/Sheet";
 import Medal from "../components/Medal";
 import { Segmented } from "./AddFood";
@@ -22,7 +23,9 @@ export default function ChallengesScreen({ profile, ch }) {
   const [view, setView] = useState("challenges");
   const [creating, setCreating] = useState(false);
   const [openMedal, setOpenMedal] = useState(null);
+  const [person, setPerson] = useState(null);
   const me = profile.id;
+  const openPerson = (uid) => { const p = ch.people[uid]; if (p) setPerson(p); };
 
   const invites = ch.challenges.filter((c) => c.status === "pending" && c.members.some((m) => m.user_id === me && m.status === "invited"));
   const waiting = ch.challenges.filter((c) => c.status === "pending" && !invites.includes(c));
@@ -32,15 +35,20 @@ export default function ChallengesScreen({ profile, ch }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-4)" }}>
       <Segmented value={view} onChange={setView} layoutId="ch-view"
-        options={[{ id: "challenges", label: "Retos" }, { id: "medals", label: `Medallas${ch.medals.length ? ` · ${ch.medals.length}` : ""}` }]} />
+        options={[{ id: "challenges", label: "Retos" }, { id: "activity", label: "Actividad" }, { id: "medals", label: "Medallas" }]} />
 
       <AnimatePresence mode="wait" initial={false}>
-        {view === "challenges" ? (
+        {view === "activity" ? (
+          <motion.div key="a" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.25, ease }}>
+            <ActivityFeed ch={ch} me={me} onOpenPerson={openPerson} />
+          </motion.div>
+        ) : view === "challenges" ? (
           <motion.div key="c" initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 16 }}
             transition={{ duration: 0.25, ease }} style={{ display: "flex", flexDirection: "column", gap: "var(--sp-4)" }}>
 
             {invites.map((c) => <Invite key={c.id} c={c} me={me} ch={ch} />)}
-            {active.map((c) => <ChallengeCard key={c.id} c={c} me={me} today={ch.today} />)}
+            {active.map((c) => <ChallengeCard key={c.id} c={c} me={me} today={ch.today} onOpenPerson={openPerson} />)}
             {waiting.map((c) => <Waiting key={c.id} c={c} me={me} ch={ch} />)}
 
             {!ch.loading && !invites.length && !active.length && !waiting.length && (
@@ -96,6 +104,9 @@ export default function ChallengesScreen({ profile, ch }) {
           <Sheet open={creating} onClose={() => setCreating(false)} title="Nuevo reto">
             <NewChallenge ch={ch} profile={profile} onDone={() => setCreating(false)} />
           </Sheet>
+          <Sheet open={!!person} onClose={() => setPerson(null)} title="Perfil">
+            {person && <PersonSheetContent person={person} ch={ch} me={me} />}
+          </Sheet>
           <Sheet open={!!openMedal} onClose={() => setOpenMedal(null)} title="Medalla">
             {openMedal && <MedalDetail medal={medalById(openMedal)} earned={ch.medals.filter((x) => x.kind === openMedal)} today={ch.today} />}
           </Sheet>
@@ -107,7 +118,7 @@ export default function ChallengesScreen({ profile, ch }) {
 }
 
 // ─── Tarjeta de reto activo: enfrentamiento con avatares y progreso en vivo ──
-function ChallengeCard({ c, me, today }) {
+function ChallengeCard({ c, me, today, onOpenPerson }) {
   const players = c.members.filter((m) => m.status === "accepted").sort((a, b) => (a.user_id === me ? -1 : b.user_id === me ? 1 : 0));
   const best = Math.max(...players.map((p) => p.done));
   const started = today >= c.start_day;
@@ -126,7 +137,7 @@ function ChallengeCard({ c, me, today }) {
         {players.map((p, i) => (
           <div key={p.user_id} style={{ display: "contents" }}>
             {i > 0 && <span style={styles.vsTag}>VS</span>}
-            <Player p={p} leader={started && best > 0 && p.done === best} isMe={p.user_id === me} />
+            <Player p={p} leader={started && best > 0 && p.done === best} isMe={p.user_id === me} onClick={() => onOpenPerson(p.user_id)} />
           </div>
         ))}
       </div>
@@ -155,9 +166,10 @@ function ChallengeCard({ c, me, today }) {
   );
 }
 
-function Player({ p, leader, isMe }) {
+function Player({ p, leader, isMe, onClick }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, minWidth: 0 }}>
+    <button onClick={onClick} aria-label={`Ver perfil de ${isMe ? "ti" : p.profile?.name}`}
+      style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, minWidth: 0, color: "var(--text)" }}>
       <div style={{ position: "relative" }}>
         <AnimatePresence>
           {leader && (
@@ -176,7 +188,8 @@ function Player({ p, leader, isMe }) {
       <span style={{ fontWeight: 700, fontSize: "var(--t-small)", maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {isMe ? "Tú" : p.profile?.name}
       </span>
-    </div>
+      {!isMe && <span className="caption" style={{ marginTop: -4 }}>Toca para animar</span>}
+    </button>
   );
 }
 
@@ -247,6 +260,82 @@ function FinishedRow({ c, me }) {
       </div>
       <span style={{ ...styles.result, ...(iWon && styles.resultWin) }}>{label}</span>
     </div>
+  );
+}
+
+// ─── Muro de actividad ──────────────────────────────────────────────────────
+const since = (iso) => {
+  const m = Math.round((Date.now() - new Date(iso)) / 60000);
+  if (m < 1) return "ahora";
+  if (m < 60) return `hace ${m} min`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `hace ${h} h`;
+  const d = Math.round(h / 24);
+  return d === 1 ? "ayer" : `hace ${d} días`;
+};
+
+// Frase del evento. Si lo hiciste tú, se conjuga en segunda persona ("Retaste a…").
+function describe(a, me, nameOf) {
+  const mine = a.actor === me;
+  const who = <b>{nameOf(a.actor)}</b>;
+  const them = <b>{a.targets.map((t) => (t === me ? "ti" : nameOf(t))).join(" y ")}</b>;
+  const v = (yo, otro) => (mine ? yo : otro);
+  const lead = (verb) => (mine ? <>{verb}</> : <>{who} {verb.charAt(0).toLowerCase() + verb.slice(1)}</>);
+  const whose = a.targets.length === 1 && a.targets[0] === me ? <>tu reto</> : <>el reto de {them}</>;
+  const what = a.data?.mode === "first_to" ? `llegar primero a ${a.data.length} días` : a.data?.length ? `${a.data.length} días de reto` : "un reto";
+  switch (a.kind) {
+    case "challenge_invite": return { Icon: Swords, text: <>{lead(v("Retaste", "Retó"))} a {them} · {what}</> };
+    case "challenge_accept": return { Icon: Handshake, text: <>{lead(v("Aceptaste", "Aceptó"))} {whose}</> };
+    case "challenge_decline": return { Icon: CircleX, text: <>{lead(v("Rechazaste", "Rechazó"))} {whose}</> };
+    case "challenge_won": return { Icon: Trophy, win: true, text: <>{lead(v("Le ganaste", "Le ganó"))} el reto a {them}{a.data?.days ? ` con ${a.data.days} días cumplidos` : ""}</> };
+    case "challenge_draw": return { Icon: Flag, text: <>{mine ? <>Empataste con {them}</> : <>{who} y {them} empataron</>} el reto</> };
+    case "medal": return { Icon: MedalIcon, medal: medalById(a.data?.medal), text: <>{lead(v("Ganaste", "Ganó"))} la medalla <b>{medalById(a.data?.medal)?.name || ""}</b></> };
+    case "poke": return a.data?.kind === "cheer"
+      ? { Icon: HandHeart, text: <>{lead(v("Le mandaste", "Le mandó"))} ánimo a {them}</> }
+      : { Icon: Zap, text: <>{lead(v("Picaste", "Picó"))} a {them}</> };
+    default: return { Icon: Flag, text: null };
+  }
+}
+
+function ActivityFeed({ ch, me, onOpenPerson }) {
+  const name = (uid) => ch.people[uid]?.name || "Alguien";
+  if (!ch.activity.length) {
+    return (
+      <section className="glass" style={{ padding: "var(--sp-6) var(--sp-5)", display: "flex", flexDirection: "column", gap: "var(--sp-2)" }}>
+        <h2>Aún no hay movimiento</h2>
+        <p className="muted">Aquí verás los retos, resultados, medallas y empujones de todo el grupo.</p>
+      </section>
+    );
+  }
+  return (
+    <section className="glass" style={{ padding: "var(--sp-2) var(--sp-4)" }}>
+      <AnimatePresence initial={false}>
+        {ch.activity.map((a, i) => {
+          const d = describe(a, me, name);
+          const actor = ch.people[a.actor];
+          const target = ch.people[a.targets[0]];
+          return (
+            <motion.div key={a.id} layout initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease }}
+              style={{ display: "flex", gap: "var(--sp-3)", alignItems: "flex-start", padding: "14px 0", borderTop: i ? "1px solid var(--hairline)" : "none" }}>
+              <button onClick={() => onOpenPerson(a.actor)} style={{ position: "relative", flexShrink: 0 }} aria-label={`Ver perfil de ${a.actor === me ? "ti" : name(a.actor)}`}>
+                <img src={avatarSrc(actor?.avatar, d.win ? "party" : undefined)} alt="" style={{ width: 44, height: 44, borderRadius: "50%", display: "block" }} />
+                {target && (
+                  <img src={avatarSrc(target.avatar, d.win ? "worried" : undefined)} alt=""
+                    style={{ position: "absolute", right: -8, bottom: -6, width: 26, height: 26, borderRadius: "50%", boxShadow: "0 0 0 2px var(--bg)" }} />
+                )}
+              </button>
+              <div style={{ flex: 1, minWidth: 0, paddingLeft: target ? 6 : 0 }}>
+                <p style={{ fontSize: "var(--t-small)", lineHeight: 1.4 }}>{d.text}</p>
+                <p className="caption" style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
+                  <d.Icon size={13} strokeWidth={2} /> {since(a.created_at)}
+                </p>
+              </div>
+              {d.medal && <Medal medal={d.medal} size={40} />}
+            </motion.div>
+          );
+        })}
+      </AnimatePresence>
+    </section>
   );
 }
 

@@ -1,7 +1,7 @@
 import { motion } from "motion/react";
 import { avatarSrc } from "../lib/avatars";
 
-export default function Avatar({ id, size = 40, ring = false, onClick }) {
+export default function Avatar({ id, mood, size = 40, ring = false, onClick }) {
   return (
     <motion.button
       type="button"
@@ -21,7 +21,7 @@ export default function Avatar({ id, size = 40, ring = false, onClick }) {
       }}
     >
       <img
-        src={avatarSrc(id)}
+        src={avatarSrc(id, mood)}
         alt=""
         width={size}
         height={size}

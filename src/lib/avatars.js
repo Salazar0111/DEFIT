@@ -11,4 +11,10 @@ export const AVATARS = [
   { id: "a8", name: "Mancuerna" },
 ];
 
-export const avatarSrc = (id) => `/avatars/${AVATARS.some((a) => a.id === id) ? id : "a1"}.svg`;
+// Ánimos: /public/avatars/<id>/<mood>.svg (happy, sleepy, worried, party, surprised).
+export const MOODS = ["happy", "sleepy", "worried", "party", "surprised"];
+
+export const avatarSrc = (id, mood) => {
+  const a = AVATARS.some((x) => x.id === id) ? id : "a1";
+  return mood && MOODS.includes(mood) ? `/avatars/${a}/${mood}.svg` : `/avatars/${a}.svg`;
+};

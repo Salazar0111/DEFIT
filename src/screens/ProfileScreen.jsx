@@ -5,8 +5,9 @@ import { supabase } from "../lib/supabase";
 import { AVATARS, avatarSrc } from "../lib/avatars";
 import { PALETTES } from "../lib/palettes";
 import Reminders from "../components/Reminders";
+import { PersonStats } from "../components/PersonCard";
 
-export default function ProfileScreen({ profile, onChange, onEditPlan, planLocked }) {
+export default function ProfileScreen({ profile, ch, onChange, onEditPlan, planLocked }) {
   const [saving, setSaving] = useState(false);
 
   const save = async (patch) => {
@@ -20,6 +21,13 @@ export default function ProfileScreen({ profile, onChange, onEditPlan, planLocke
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-4)" }}>
+      {ch && (
+        <section className="glass" style={styles.section}>
+          <h2>Tus logros</h2>
+          <PersonStats uid={profile.id} ch={ch} />
+        </section>
+      )}
+
       <section className="glass" style={styles.section}>
         <div style={styles.head}>
           <h2>Tu avatar</h2>

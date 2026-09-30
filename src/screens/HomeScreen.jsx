@@ -4,6 +4,9 @@ import { avatarSrc } from "../lib/avatars";
 import { challengeTitle } from "./ChallengesScreen";
 import { fmt } from "../lib/plan";
 import { useFood } from "../lib/useFood";
+import { useState } from "react";
+import { AnimatePresence } from "motion/react";
+import { dayMood, dayPhrase } from "../lib/buddy";
 import { dayKey, totals } from "../lib/food";
 
 const ease = [0.16, 1, 0.3, 1];
@@ -11,6 +14,7 @@ const ease = [0.16, 1, 0.3, 1];
 export default function HomeScreen({ profile, ch, onEditPlan, onOpenChallenges }) {
   const { entries } = useFood(profile, dayKey(new Date(), profile.timezone));
   const eaten = totals(entries).kcal;
+  const mood = dayMood({ eaten, target: profile.target_kcal || 0, entries: entries.length });
   const target = profile.target_kcal || 0;
   const left = target - eaten;
   const pct = target ? Math.min(eaten / target, 1) : 0;
@@ -34,6 +38,8 @@ export default function HomeScreen({ profile, ch, onEditPlan, onOpenChallenges }
         </div>
       </section>
 
+      <Buddy profile={profile} mood={mood} eaten={eaten} />
+
       {ch && <ChallengeTeaser ch={ch} me={profile.id} onOpen={onOpenChallenges} />}
 
       <section className="glass" style={{ padding: "var(--sp-4) var(--sp-5)" }}>
@@ -50,6 +56,31 @@ export default function HomeScreen({ profile, ch, onEditPlan, onOpenChallenges }
       </section>
 
     </div>
+  );
+}
+
+// Tu personaje: cambia de ánimo según tu día. Al tocarlo salta y dice otra cosa.
+function Buddy({ profile, mood, eaten }) {
+  const [seed, setSeed] = useState(() => Math.floor(Math.random() * 3));
+  const first = (profile.name || "").split(" ")[0];
+  const text = dayPhrase({ mood, eaten, target: profile.target_kcal || 0, name: first, seed });
+  return (
+    <section className="glass" style={{ padding: "var(--sp-4)", display: "flex", alignItems: "center", gap: "var(--sp-3)" }}>
+      <motion.button key={`${mood}-${seed}`} onClick={() => setSeed((x) => x + 1)} aria-label="Tu personaje"
+        initial={{ y: 0 }} animate={{ y: [0, -14, 0, -5, 0], rotate: [0, -4, 3, 0] }} transition={{ duration: 0.7, ease: "easeOut" }}
+        whileTap={{ scale: 0.9 }} style={{ flexShrink: 0 }}>
+        <motion.img src={avatarSrc(profile.avatar, mood)} alt="" width={72} height={72}
+          animate={mood === "sleepy" ? { y: [0, 3, 0] } : mood === "party" ? { rotate: [0, -6, 6, 0] } : {}}
+          transition={{ duration: mood === "sleepy" ? 3 : 1.6, repeat: Infinity, repeatDelay: mood === "party" ? 1.2 : 0 }}
+          style={{ width: 72, height: 72, borderRadius: "50%", display: "block" }} />
+      </motion.button>
+      <AnimatePresence mode="wait">
+        <motion.div key={text} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
+          transition={{ duration: 0.25 }} style={styles.bubble}>
+          <p style={{ fontWeight: 700, fontSize: "var(--t-small)", lineHeight: 1.35 }}>{text}</p>
+        </motion.div>
+      </AnimatePresence>
+    </section>
   );
 }
 
@@ -127,5 +158,9 @@ const styles = {
     display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, pointerEvents: "none",
   },
   big: { fontSize: "var(--t-display)", fontWeight: 700, letterSpacing: "-0.04em", lineHeight: 1 },
+  bubble: {
+    position: "relative", flex: 1, padding: "12px 14px", borderRadius: "18px 18px 18px 6px",
+    background: "var(--field)", border: "1px solid var(--hairline)",
+  },
   stats: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", paddingTop: "var(--sp-3)", borderTop: "1px solid var(--hairline)" },
 };
