@@ -191,22 +191,23 @@ export function computePlanV2(d) {
 
   const floor = FLOOR[d.sex];
   const lowest = Math.min(...Object.entries(targets).filter(([k]) => count[k] > 0).map(([, v]) => v));
+  // warnings = riesgos de comer poco (piden confirmación). notes = avisos informativos, sin alarma.
   const warnings = [];
-  if (adj < 0 && lowest < floor) {
-    warnings.push(`Tu día más bajo quedaría en ${fmt(lowest)} kcal, por debajo del mínimo de referencia de ${fmt(floor)} kcal.`);
-  } else if (adj < 0 && lowest < bmr) {
-    warnings.push(`Tu día más bajo quedaría por debajo de tu metabolismo basal (${fmt(bmr)} kcal). Es sostenible por poco tiempo.`);
-  }
-  if (d.goal === "lose" && deficit / avgExp > 0.35) {
-    warnings.push(`Es un recorte del ${Math.round((deficit / avgExp) * 100)}% de tu gasto diario. Consúltalo con un profesional.`);
-  }
-  if (d.goal === "gain_fast") {
-    warnings.push(trains
+  const notes = [];
+  if (d.goal === "lose") {
+    if (lowest < floor) warnings.push(`Tu día más bajo quedaría en ${fmt(lowest)} kcal, por debajo del mínimo de referencia de ${fmt(floor)} kcal.`);
+    else if (lowest < bmr) warnings.push(`Tu día más bajo quedaría por debajo de tu metabolismo basal (${fmt(bmr)} kcal). Es sostenible por poco tiempo.`);
+    if (deficit / avgExp > 0.35) warnings.push(`Es un recorte del ${Math.round((deficit / avgExp) * 100)}% de tu gasto diario. Consúltalo con un profesional.`);
+  } else if (d.goal === "recomp") {
+    // El déficit de la recomposición es pequeño: solo se avisa si un día cae bajo el mínimo de referencia.
+    if (lowest < floor) warnings.push(`Tu día más bajo quedaría en ${fmt(lowest)} kcal, por debajo del mínimo de referencia de ${fmt(floor)} kcal.`);
+    else notes.push("Los días de entreno quedan cerca de tu mantenimiento y el ajuste va en los días de descanso.");
+  } else if (d.goal === "gain_fast") {
+    notes.push(trains
       ? "Con +20% la evidencia muestra que sumas sobre todo grasa, no más músculo. +10% rinde igual con menos grasa."
       : "Sin entrenar con pesas, el peso que ganes será mayormente grasa.");
-  }
-  if (d.goal === "gain_clean" && !trains) {
-    warnings.push("Sin entrenar con pesas, el peso que ganes será mayormente grasa.");
+  } else if (d.goal === "gain_clean" && !trains) {
+    notes.push("Sin entrenar con pesas, el peso que ganes será mayormente grasa.");
   }
 
   // Proteína (g/kg): más alta al bajar o recomponer y al entrenar.
@@ -216,7 +217,7 @@ export function computePlanV2(d) {
   const protein = round(gkg * w);
 
   return {
-    age, bmr, base, burn, exp, count, targets, target, protein, floor, warnings, trains,
+    age, bmr, base, burn, exp, count, targets, target, protein, floor, warnings, notes, trains,
     legDays, plainDays,
     avgExp: round(avgExp),
     adjustment: round(adj),

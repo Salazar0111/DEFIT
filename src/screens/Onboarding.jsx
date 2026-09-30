@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ChevronLeft, Check, TriangleAlert, X } from "lucide-react";
+import { ChevronLeft, Check, Info, TriangleAlert, X } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { AVATARS, avatarSrc } from "../lib/avatars";
 import PhotoTile from "../components/PhotoTile";
@@ -76,7 +76,7 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
     legs: true,
     session: true,
     mode: true,
-    goal: !!d.goal && (!plan?.warnings.filter((w) => !w.startsWith("Con +20%") && !w.startsWith("Sin entrenar")).length || ack),
+    goal: !!d.goal && (!plan?.warnings.length || ack),
     summary: !!plan,
   }[current];
 
@@ -383,12 +383,21 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
                           {plan.warnings.map((w) => <p key={w} style={{ fontSize: "var(--t-small)" }}>{w}</p>)}
                         </div>
                       </div>
-                      {plan.warnings.some((w) => !w.startsWith("Con +20%") && !w.startsWith("Sin entrenar")) && (
-                        <label style={styles.ack}>
-                          <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} style={{ accentColor: "var(--accent-strong)", width: 20, height: 20 }} />
-                          <span style={{ fontSize: "var(--t-small)", fontWeight: 700 }}>Entiendo el riesgo y quiero este nivel</span>
-                        </label>
-                      )}
+                      <label style={styles.ack}>
+                        <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} style={{ accentColor: "var(--accent-strong)", width: 20, height: 20 }} />
+                        <span style={{ fontSize: "var(--t-small)", fontWeight: 700 }}>Entiendo el riesgo y quiero este nivel</span>
+                      </label>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <AnimatePresence>
+                  {plan?.notes.length > 0 && (
+                    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={styles.note}>
+                      <Info size={18} strokeWidth={2} style={{ color: "var(--accent)", flexShrink: 0, marginTop: 2 }} />
+                      <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-1)" }}>
+                        {plan.notes.map((n) => <p key={n} style={{ fontSize: "var(--t-small)" }}>{n}</p>)}
+                      </div>
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -430,7 +439,7 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
                     <Row label="Metabolismo basal" value={`${fmt(plan.bmr)} kcal`} />
                     <Row label="Tu día fuera del gym" value={`${fmt(plan.base)} kcal`} />
                     <Row label="Gasto promedio con entreno" value={`${fmt(plan.avgExp)} kcal`} strong />
-                    {plan.adjustment !== 0 && <Row label={plan.adjustment < 0 ? "Déficit" : "Superávit"} value={`${plan.adjustment < 0 ? "−" : "+"}${fmt(Math.abs(plan.adjustment))} kcal`} />}
+                    {plan.adjustment !== 0 && <Row label={d.goal === "recomp" ? "Ajuste de recomposición" : plan.adjustment < 0 ? "Déficit" : "Superávit"} value={`${plan.adjustment < 0 ? "−" : "+"}${fmt(Math.abs(plan.adjustment))} kcal`} />}
                     <Row label="Proteína diaria" value={`${fmt(plan.protein)} g`} />
                     <Row label="Cambio estimado" value={plan.weeklyKg === 0 ? "Peso estable" : `${plan.weeklyKg > 0 ? "+" : "−"}${Math.abs(plan.weeklyKg).toLocaleString("es-CO")} kg por semana`} last />
                   </div>
@@ -571,6 +580,10 @@ const styles = {
   warn: {
     marginTop: "var(--sp-3)", padding: "var(--sp-4)", borderRadius: "var(--r-md)", display: "flex", flexDirection: "column", gap: "var(--sp-3)",
     background: "color-mix(in srgb, var(--danger) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--danger) 35%, transparent)",
+  },
+  note: {
+    marginTop: "var(--sp-3)", padding: "var(--sp-4)", borderRadius: "var(--r-md)", display: "flex", gap: "var(--sp-2)", alignItems: "flex-start",
+    background: "color-mix(in srgb, var(--accent) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--accent) 30%, transparent)",
   },
   ack: { display: "flex", alignItems: "center", gap: "var(--sp-2)", cursor: "pointer" },
   hero: { padding: "var(--sp-6) var(--sp-5)", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "var(--sp-1)" },
