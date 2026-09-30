@@ -3,12 +3,11 @@ import { AnimatePresence, motion } from "motion/react";
 import { Check, Clock, MessageCircle, Send, UserPlus } from "lucide-react";
 import { supabase } from "../lib/supabase";
 
-const LIMIT = 5;
 const APP_URL = "https://defit-eta.vercel.app";
 
 const ERRORS = {
   BAD_EMAIL: "Ese correo no parece válido.",
-  INVITE_LIMIT: `Ya usaste tus ${LIMIT} invitaciones.`,
+  NOT_ALLOWED: "Solo el administrador puede invitar.",
 };
 
 const shareText = (name) =>
@@ -21,13 +20,18 @@ export default function InviteFriends({ profile }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null); // { ok, text }
   const [lastInvited, setLastInvited] = useState(null);
+  // Solo quien tiene permiso (el administrador) ve esta sección.
+  const [allowed, setAllowed] = useState(demo);
 
   const load = async () => {
     if (demo) { setInvites([{ email: "claudiamec0110@gmail.com", joined: true }]); return; }
     const { data } = await supabase.rpc("my_invites");
     setInvites(data || []);
   };
-  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (demo) { load(); return; }
+    supabase.rpc("can_invite").then(({ data }) => { setAllowed(!!data); if (data) load(); });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const invite = async (e) => {
     e.preventDefault();
@@ -57,13 +61,13 @@ export default function InviteFriends({ profile }) {
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
   };
 
-  const used = invites.length;
+  if (!allowed) return null;
 
   return (
     <section className="glass" style={{ padding: "var(--sp-5)", display: "flex", flexDirection: "column", gap: "var(--sp-4)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
         <h2>Invitar amigos</h2>
-        <span className="caption num">{Math.max(LIMIT - used, 0)} de {LIMIT} disponibles</span>
+        <span className="caption num">{invites.length} invitados</span>
       </div>
       <p className="muted" style={{ fontSize: "var(--t-small)" }}>
         Escribe su correo para darle acceso y mándale el link. Así podrán retarse.
@@ -75,7 +79,7 @@ export default function InviteFriends({ profile }) {
           <input id="inv-email" type="email" inputMode="email" autoComplete="off" placeholder="amigo@correo.com"
             value={email} onChange={(e) => setEmail(e.target.value)} required />
         </div>
-        <button className="btn btn-primary" disabled={busy || !email || used >= LIMIT} aria-label="Invitar">
+        <button className="btn btn-primary" disabled={busy || !email} aria-label="Invitar">
           <UserPlus size={18} strokeWidth={2} />
         </button>
       </form>
