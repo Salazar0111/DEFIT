@@ -10,6 +10,9 @@ const ERRORS = {
   NOT_PENDING: "Este reto ya no está pendiente.",
   BAD_OPPONENTS: "Elige al menos a una persona.",
   POKE_LIMIT: "Ya usaste los 3 empujones de hoy con esta persona.",
+  NOT_ACTIVE: "Este reto ya no está activo.",
+  ALREADY_REQUESTED: "Ya hay una propuesta de cancelar pendiente.",
+  NO_REQUEST: "La propuesta ya no está vigente.",
   NO_ACTIVE_CHALLENGE: "Solo puedes empujar a alguien con quien tengas un reto activo.",
 };
 const friendly = (e) => ERRORS[Object.keys(ERRORS).find((k) => e?.message?.includes(k))] || "Algo falló. Intenta de nuevo.";
@@ -93,7 +96,7 @@ export function useChallenges(profile) {
 
   const planLocked = state.challenges.some((c) =>
     ["pending", "active"].includes(c.status) &&
-    c.members.some((m) => m.user_id === profile.id && m.status === "accepted"));
+    c.members.some((m) => m.user_id === profile.id && m.status === "accepted" && !m.forfeited));
 
   const markMedalsSeen = async () => {
     const unseen = state.medals.filter((m) => !m.seen).map((m) => m.id);
@@ -160,6 +163,9 @@ export function useChallenges(profile) {
     create: (opponents, mode, length) => rpc("create_challenge", { opponents, mode, length_days: length }),
     respond: (id, accept) => rpc("respond_challenge", { cid: id, accept }),
     cancel: (id) => rpc("cancel_challenge", { cid: id }),
+    forfeit: (id) => rpc("forfeit_challenge", { cid: id }),
+    requestCancel: (id) => rpc("request_cancel", { cid: id }),
+    respondCancel: (id, accept) => rpc("respond_cancel", { cid: id, accept }),
   };
 }
 

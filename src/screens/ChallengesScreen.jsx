@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
-import { Crown, Plus, Swords, Check, X, Lock, HandHeart, Zap, Flag, Trophy, Handshake, Medal as MedalIcon, CircleX } from "lucide-react";
+import { Crown, Plus, Swords, Check, X, Lock, HandHeart, Zap, Flag, Trophy, Handshake, Medal as MedalIcon, CircleX, FlagOff, Ban } from "lucide-react";
 import { PersonSheetContent } from "../components/PersonCard";
 import Sheet from "../components/Sheet";
 import Medal from "../components/Medal";
@@ -48,7 +48,7 @@ export default function ChallengesScreen({ profile, ch }) {
             transition={{ duration: 0.25, ease }} style={{ display: "flex", flexDirection: "column", gap: "var(--sp-4)" }}>
 
             {invites.map((c) => <Invite key={c.id} c={c} me={me} ch={ch} />)}
-            {active.map((c) => <ChallengeCard key={c.id} c={c} me={me} today={ch.today} onOpenPerson={openPerson} />)}
+            {active.map((c) => <ChallengeCard key={c.id} c={c} me={me} ch={ch} today={ch.today} onOpenPerson={openPerson} />)}
             {waiting.map((c) => <Waiting key={c.id} c={c} me={me} ch={ch} />)}
 
             {!ch.loading && !invites.length && !active.length && !waiting.length && (
@@ -118,8 +118,8 @@ export default function ChallengesScreen({ profile, ch }) {
 }
 
 // ─── Tarjeta de reto activo: enfrentamiento con avatares y progreso en vivo ──
-function ChallengeCard({ c, me, today, onOpenPerson }) {
-  const players = c.members.filter((m) => m.status === "accepted").sort((a, b) => (a.user_id === me ? -1 : b.user_id === me ? 1 : 0));
+function ChallengeCard({ c, me, ch, today, onOpenPerson }) {
+  const players = c.members.filter((m) => m.status === "accepted" && !m.forfeited).sort((a, b) => (a.user_id === me ? -1 : b.user_id === me ? 1 : 0));
   const best = Math.max(...players.map((p) => p.done));
   const started = today >= c.start_day;
   const dayN = started ? Math.min(between(c.start_day, today) + 1, between(c.start_day, c.end_day) + 1) : 0;
@@ -162,7 +162,77 @@ function ChallengeCard({ c, me, today, onOpenPerson }) {
           </div>
         ))}
       </div>
+
+      <EndChallenge c={c} me={me} ch={ch} />
     </motion.section>
+  );
+}
+
+// Terminar antes de tiempo: proponer cancelar (mutuo acuerdo) o rendirse.
+function EndChallenge({ c, me, ch }) {
+  const [confirm, setConfirm] = useState(null); // "forfeit" | "cancel"
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const requester = c.cancel_requested_by;
+  const iVoted = (c.cancel_votes || []).includes(me);
+  const requesterName = c.members.find((m) => m.user_id === requester)?.profile?.name;
+
+  const run = async (fn) => {
+    setBusy(true); setError("");
+    try { await fn(); setConfirm(null); } catch (e) { setError(e.message); } finally { setBusy(false); }
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-2)", paddingTop: "var(--sp-3)", borderTop: "1px solid var(--hairline)" }}>
+      {requester && requester !== me && !iVoted && (
+        <div style={styles.cancelAsk}>
+          <p style={{ fontWeight: 700 }}>{requesterName} propone cancelar el reto</p>
+          <p className="caption">Si aceptas, termina sin ganador y ambos pueden ajustar su plan.</p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--sp-2)", marginTop: "var(--sp-2)" }}>
+            <button className="btn btn-glass" disabled={busy} onClick={() => run(() => ch.respondCancel(c.id, false))}>Seguir</button>
+            <button className="btn btn-primary" disabled={busy} onClick={() => run(() => ch.respondCancel(c.id, true))}>Cancelar reto</button>
+          </div>
+        </div>
+      )}
+      {requester && (requester === me || iVoted) && (
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)" }}>
+          <p className="caption" style={{ flex: 1 }}>Propuesta de cancelar enviada. Esperando respuesta.</p>
+          {requester === me && (
+            <button className="btn btn-text" style={{ fontSize: "var(--t-small)" }} disabled={busy} onClick={() => run(() => ch.respondCancel(c.id, false))}>Retirar</button>
+          )}
+        </div>
+      )}
+
+      {!requester && !confirm && (
+        <div style={{ display: "flex", justifyContent: "space-between", gap: "var(--sp-2)" }}>
+          <button className="btn btn-text" style={styles.endBtn} onClick={() => setConfirm("cancel")}><Ban size={15} strokeWidth={2} /> Proponer cancelar</button>
+          <button className="btn btn-text" style={styles.endBtn} onClick={() => setConfirm("forfeit")}><FlagOff size={15} strokeWidth={2} /> Rendirme</button>
+        </div>
+      )}
+
+      <AnimatePresence>
+        {confirm && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} style={{ overflow: "hidden" }}>
+            <div style={styles.cancelAsk}>
+              <p style={{ fontWeight: 700 }}>{confirm === "forfeit" ? "¿Seguro que te rindes?" : "¿Proponer cancelar el reto?"}</p>
+              <p className="caption">
+                {confirm === "forfeit"
+                  ? "Pierdes el reto y tu rival gana su medalla. Tu plan se desbloquea."
+                  : "Tu rival tiene que aceptar. Si acepta, el reto termina sin ganador."}
+              </p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--sp-2)", marginTop: "var(--sp-2)" }}>
+                <button className="btn btn-glass" disabled={busy} onClick={() => setConfirm(null)}>Volver</button>
+                <button className="btn btn-primary" disabled={busy}
+                  onClick={() => run(() => (confirm === "forfeit" ? ch.forfeit(c.id) : ch.requestCancel(c.id)))}>
+                  {confirm === "forfeit" ? "Me rindo" : "Proponer"}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {error && <p role="alert" style={{ color: "var(--danger)", fontWeight: 700, fontSize: "var(--t-small)" }}>{error}</p>}
+    </div>
   );
 }
 
@@ -256,7 +326,7 @@ function FinishedRow({ c, me }) {
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{ fontWeight: 700, fontSize: "var(--t-small)" }}>{challengeTitle(c)}</p>
-        <p className="caption num">{c.members.filter((m) => m.status === "accepted").map((m) => `${m.user_id === me ? "Tú" : m.profile?.name} ${m.days_done}`).join(" · ")}</p>
+        <p className="caption num">{c.members.filter((m) => m.status === "accepted").map((m) => `${m.user_id === me ? "Tú" : m.profile?.name} ${m.forfeited ? "se rindió" : m.days_done}`).join(" · ")}</p>
       </div>
       <span style={{ ...styles.result, ...(iWon && styles.resultWin) }}>{label}</span>
     </div>
@@ -289,6 +359,8 @@ function describe(a, me, nameOf) {
     case "challenge_decline": return { Icon: CircleX, text: <>{lead(v("Rechazaste", "Rechazó"))} {whose}</> };
     case "challenge_won": return { Icon: Trophy, win: true, text: <>{lead(v("Le ganaste", "Le ganó"))} el reto a {them}{a.data?.days ? ` con ${a.data.days} días cumplidos` : ""}</> };
     case "challenge_draw": return { Icon: Flag, text: <>{mine ? <>Empataste con {them}</> : <>{who} y {them} empataron</>} el reto</> };
+    case "challenge_forfeit": return { Icon: FlagOff, text: <>{lead(v("Te rendiste", "Se rindió"))} en el reto con {them}</> };
+    case "challenge_cancelled": return { Icon: Ban, text: <>{mine ? <>Tú y {them}</> : <>{who} y {them}</>} cancelaron el reto</> };
     case "medal": return { Icon: MedalIcon, medal: medalById(a.data?.medal), text: <>{lead(v("Ganaste", "Ganó"))} la medalla <b>{medalById(a.data?.medal)?.name || ""}</b></> };
     case "poke": return a.data?.kind === "cheer"
       ? { Icon: HandHeart, text: <>{lead(v("Le mandaste", "Le mandó"))} ánimo a {them}</> }
@@ -436,6 +508,11 @@ const styles = {
   vs: { display: "flex", alignItems: "center", justifyContent: "space-around", gap: "var(--sp-2)", padding: "var(--sp-2) 0" },
   vsTag: { fontWeight: 700, fontSize: 13, letterSpacing: "0.2em", color: "var(--text-2)" },
   avatar: { width: 84, height: 84, borderRadius: "50%", display: "block" },
+  endBtn: { minHeight: 36, fontSize: "var(--t-caption)", color: "var(--text-2)", gap: 6, padding: 0 },
+  cancelAsk: {
+    padding: "var(--sp-3) var(--sp-4)", borderRadius: "var(--r-md)",
+    background: "var(--field)", border: "1px solid var(--hairline)",
+  },
   crown: { position: "absolute", top: -16, left: -6, zIndex: 1, filter: "drop-shadow(0 2px 3px rgba(0,0,0,.3))" },
   track: { height: 10, borderRadius: 99, background: "var(--hairline)", overflow: "hidden" },
   fill: { height: "100%", borderRadius: 99, background: "linear-gradient(90deg, var(--accent), var(--accent-strong))" },
