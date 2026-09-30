@@ -20,6 +20,7 @@ import { useChallenges } from "./lib/useChallenges";
 import { useDayTypes } from "./lib/useDayTypes";
 import { useWorkouts } from "./lib/useWorkouts";
 import { medalById } from "./lib/medals";
+import { fx } from "./lib/feedback";
 import { avatarSrc } from "./lib/avatars";
 import { challengeTitle } from "./screens/ChallengesScreen";
 
@@ -125,6 +126,11 @@ function Main({ profile, tab, setTab, patchProfile, onEditPlan }) {
     const t = setTimeout(after(() => ch.markPokeSeen(poke.id)), 6000);
     return () => clearTimeout(t);
   }, [poke?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sonido al aparecer cada momento (medalla, resultado, empujón).
+  useEffect(() => { if (newMedal) fx("medal"); }, [newMedal?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (result) fx(result.members.some((m) => m.user_id === profile.id && m.winner) ? "record" : "soft"); }, [result?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (poke) fx("soft"); }, [poke?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Ofrece "Entrar con Face ID" una sola vez por dispositivo si aún no tiene llave.
   const [offerFaceIdRaw, setOfferFaceId] = useState(false);

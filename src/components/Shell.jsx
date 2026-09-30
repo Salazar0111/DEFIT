@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { House, UtensilsCrossed, Dumbbell, Trophy, UserRound } from "lucide-react";
 import Avatar from "./Avatar";
+import { fx } from "../lib/feedback";
 
 export const TABS = [
   { id: "home", label: "Hoy", Icon: House },
@@ -45,7 +46,7 @@ export default function Shell({ profile, tab, onTab, children }) {
         {TABS.map(({ id, label, Icon }) => {
           const active = id === tab;
           return (
-            <button key={id} onClick={() => onTab(id)} style={styles.tab} aria-current={active ? "page" : undefined}>
+            <button key={id} onClick={() => { if (!active) fx("tick"); onTab(id); }} style={styles.tab} aria-current={active ? "page" : undefined}>
               {active && (
                 <motion.span
                   layoutId="tab-pill"

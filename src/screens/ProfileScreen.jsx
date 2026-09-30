@@ -8,6 +8,7 @@ import { AVATARS, avatarSrc } from "../lib/avatars";
 import { PALETTES } from "../lib/palettes";
 import Reminders from "../components/Reminders";
 import PhotoTile from "../components/PhotoTile";
+import FeedbackSettings from "../components/FeedbackSettings";
 import { PersonStats, PersonSheetContent } from "../components/PersonCard";
 import InviteFriends from "../components/InviteFriends";
 import PasskeySettings from "../components/PasskeySettings";
@@ -99,6 +100,8 @@ export default function ProfileScreen({ profile, ch, onChange, onEditPlan, planL
       <InviteFriends profile={profile} />
 
       <Reminders profile={profile} onChange={onChange} />
+
+      <FeedbackSettings />
 
       <PasskeySettings profile={profile} />
 

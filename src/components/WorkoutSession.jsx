@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Check, ChevronLeft, ChevronRight, Minus, Plus, TrendingUp, X } from "lucide-react";
 import { e1rm, exerciseById } from "../lib/exercises";
+import { fx } from "../lib/feedback";
 
 const REST_S = 90;
 const ease = [0.16, 1, 0.3, 1];
@@ -43,7 +44,7 @@ export default function WorkoutSession({ session, lastSets, best = {}, onFinish,
 
   useEffect(() => {
     if (rest <= 0) return;
-    const t = setTimeout(() => setRest((r) => r - 1), 1000);
+    const t = setTimeout(() => { if (rest === 1) fx("rest"); setRest((r) => r - 1); }, 1000);
     return () => clearTimeout(t);
   }, [rest]);
 
@@ -59,10 +60,13 @@ export default function WorkoutSession({ session, lastSets, best = {}, onFinish,
     // Récord: supera tu mejor peso o tu fuerza estimada (solo si ya habías hecho el ejercicio).
     const b = bests.current[ex.id];
     const e = reps <= 10 ? e1rm(kg, reps) : 0;
-    if (b && b.kg > 0 && (kg > b.kg || (e > 0 && e > b.e1rm))) {
+    const isRecord = !!(b && b.kg > 0 && (kg > b.kg || (e > 0 && e > b.e1rm)));
+    if (!isRecord) fx("success");
+    if (isRecord) {
       bests.current[ex.id] = { kg: Math.max(b.kg, kg), e1rm: Math.max(b.e1rm, e) };
       setRecords((r) => ({ ...r, [ex.id]: { name: ex.info.name, kg, reps } }));
       setFlash({ key: Date.now(), text: `${ex.info.name}: ${kgFmt(kg)} kg × ${reps}` });
+      fx("record");
       setTimeout(() => setFlash(null), 2600);
     }
     if (setNo >= ex.sets) {
@@ -182,7 +186,7 @@ export default function WorkoutSession({ session, lastSets, best = {}, onFinish,
 }
 
 function Stepper({ label, unit, value, onChange, step, big }) {
-  const set = (v) => onChange(Math.max(0, Math.round(v * 100) / 100));
+  const set = (v) => { fx("tick"); onChange(Math.max(0, Math.round(v * 100) / 100)); };
   return (
     <div className="glass" style={styles.stepper}>
       <p className="eyebrow">{label}</p>

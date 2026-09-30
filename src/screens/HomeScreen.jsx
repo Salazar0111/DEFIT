@@ -12,6 +12,7 @@ import { useEffect } from "react";
 import { useState } from "react";
 import { AnimatePresence } from "motion/react";
 import { dayMood, dayPhrase } from "../lib/buddy";
+import { fx } from "../lib/feedback";
 import { dayKey, totals } from "../lib/food";
 
 const ease = [0.16, 1, 0.3, 1];
@@ -131,7 +132,7 @@ function WeightCard({ profile, onEditPlan }) {
     if (!(w >= 30 && w <= 300)) return;
     setSaving(true);
     if (!demo) await supabase.from("weight_logs").upsert({ user_id: profile.id, day: today, weight_kg: w }, { onConflict: "user_id,day" });
-    setLatest(w); setValue(""); setSaving(false);
+    setLatest(w); setValue(""); setSaving(false); fx("success");
   };
 
   return (
@@ -165,6 +166,7 @@ function DayTypePicker({ profile, dt, today }) {
     ...(profile.train_type !== "cardio" && (profile.train_days || []).length ? [{ id: "leg", label: "Pierna" }] : [])];
   const pick = async (id) => {
     setError("");
+    fx("tick");
     try { await dt.setType(today, id); } catch (e) { setError(e.message); }
   };
   return (
