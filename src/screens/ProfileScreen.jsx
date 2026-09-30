@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "motion/react";
-import { Check, Eye, Lock, LogOut, SlidersHorizontal } from "lucide-react";
+import { BookOpen, Check, Eye, Lock, LogOut, SlidersHorizontal } from "lucide-react";
 import { createPortal } from "react-dom";
 import Sheet from "../components/Sheet";
 import { supabase } from "../lib/supabase";
@@ -11,7 +11,7 @@ import { PersonStats, PersonSheetContent } from "../components/PersonCard";
 import InviteFriends from "../components/InviteFriends";
 import PasskeySettings from "../components/PasskeySettings";
 
-export default function ProfileScreen({ profile, ch, onChange, onEditPlan, planLocked }) {
+export default function ProfileScreen({ profile, ch, onChange, onEditPlan, planLocked, onReplayTour }) {
   const [saving, setSaving] = useState(false);
   const [preview, setPreview] = useState(false);
 
@@ -111,6 +111,12 @@ export default function ProfileScreen({ profile, ch, onChange, onEditPlan, planL
           {preview && <PersonSheetContent person={profile} ch={ch} me={profile.id} preview />}
         </Sheet>,
         document.body
+      )}
+
+      {onReplayTour && (
+        <button className="btn btn-glass btn-block" onClick={onReplayTour}>
+          <BookOpen size={18} strokeWidth={1.8} /> Ver tutorial
+        </button>
       )}
 
       <button className="btn btn-glass btn-block" onClick={() => supabase.auth.signOut()}>

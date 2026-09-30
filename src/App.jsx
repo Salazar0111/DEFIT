@@ -13,6 +13,8 @@ import FoodScreen from "./screens/FoodScreen";
 import WeightScreen from "./screens/WeightScreen";
 import ChallengesScreen from "./screens/ChallengesScreen";
 import Sheet from "./components/Sheet";
+import Tour from "./components/Tour";
+import TabTip from "./components/TabTip";
 import Medal from "./components/Medal";
 import { useChallenges } from "./lib/useChallenges";
 import { medalById } from "./lib/medals";
@@ -29,6 +31,8 @@ const DEMO_PROFILE = params.get("demo") === "nuevo"
       id: "demo", name: "Brayan", avatar: "a3", palette: "noche-azul", onboarded: true,
       sex: "m", birthdate: "1995-05-10", height_cm: 178, weight_kg: 92, frame: "medium",
       activity: "moderate", deficit: 800, bmr: 1883, tdee: 2919, target_kcal: 2119,
+      // ?demo&tour muestra el tutorial; ?demo&tips, las burbujas por pestaña.
+      tips_seen: params.has("tour") ? [] : params.has("tips") ? ["tour"] : ["tour", "home", "food", "weight", "challenges", "profile"],
     };
 
 export default function App() {
@@ -89,12 +93,23 @@ export default function App() {
 // App con sesión y plan listo. Aquí vive el estado de retos (en tiempo real) que comparten las pantallas.
 function Main({ profile, tab, setTab, patchProfile, onEditPlan }) {
   const ch = useChallenges(profile);
+  // Tutoriales vistos (guardados en el perfil para no repetirse en otros dispositivos).
+  const seen = (key) => (profile.tips_seen || []).includes(key);
+  const markSeen = async (key) => {
+    if (seen(key)) return;
+    const tips_seen = [...(profile.tips_seen || []), key];
+    patchProfile({ tips_seen });
+    if (profile.id !== "demo") await supabase.from("profiles").update({ tips_seen }).eq("id", profile.id);
+  };
+  const showTour = !seen("tour");
+  const replayTour = () => patchProfile({ tips_seen: (profile.tips_seen || []).filter((k) => k !== "tour") });
+
   const [notice, setNotice] = useState("");
   // Un solo momento a la vez: primero el resultado de un reto, luego medallas, luego empujones.
   // Entre un momento y otro hay una pausa para que las hojas no se crucen.
   const [pause, setPause] = useState(false);
   const after = (fn) => () => { fn(); setPause(true); setTimeout(() => setPause(false), 650); };
-  const result = !pause && ch.unseenResult;
+  const result = !pause && !showTour && ch.unseenResult;
   const newMedal = !pause && !result && ch.medals.find((m) => !m.seen);
   const poke = !pause && !result && !newMedal && ch.pokes[0];
   // Cada empujón se cierra solo a los 6 s (o al tocarlo) y da paso al siguiente.
@@ -105,7 +120,8 @@ function Main({ profile, tab, setTab, patchProfile, onEditPlan }) {
   }, [poke?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Ofrece "Entrar con Face ID" una sola vez por dispositivo si aún no tiene llave.
-  const [offerFaceId, setOfferFaceId] = useState(false);
+  const [offerFaceIdRaw, setOfferFaceId] = useState(false);
+  const offerFaceId = offerFaceIdRaw && !showTour;
   const [faceIdMsg, setFaceIdMsg] = useState("");
   useEffect(() => {
     if (profile.id === "demo" || !passkeySupported()) return;
@@ -132,14 +148,19 @@ function Main({ profile, tab, setTab, patchProfile, onEditPlan }) {
     food: <FoodScreen profile={profile} />,
     weight: <WeightScreen profile={profile} onEditPlan={editPlan} />,
     challenges: <ChallengesScreen profile={profile} ch={ch} />,
-    profile: <ProfileScreen profile={profile} ch={ch} onChange={patchProfile} onEditPlan={editPlan} planLocked={ch.planLocked} />,
+    profile: <ProfileScreen profile={profile} ch={ch} onChange={patchProfile} onEditPlan={editPlan} planLocked={ch.planLocked} onReplayTour={replayTour} />,
   };
 
   return (
     <>
       <Shell profile={profile} tab={tab} onTab={setTab}>
+        <TabTip tab={tab} avatar={profile.avatar} show={!showTour && !seen(tab)} onDismiss={() => markSeen(tab)} />
         {screens[tab]}
       </Shell>
+
+      <AnimatePresence>
+        {showTour && <Tour key="tour" profile={profile} onDone={() => markSeen("tour")} onGoProfile={() => setTab("profile")} />}
+      </AnimatePresence>
 
       <AnimatePresence>
         {notice && (
