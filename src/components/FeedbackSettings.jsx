@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { motion } from "motion/react";
 import { Vibrate, Volume2 } from "lucide-react";
-import { fx, getFx, setFx } from "../lib/feedback";
+import { fx, getFx, iosHapticsSupported, setFx } from "../lib/feedback";
 
 // Perfil → Sonido y vibración (por dispositivo).
 export default function FeedbackSettings() {
@@ -17,6 +17,17 @@ export default function FeedbackSettings() {
       <Row Icon={Volume2} title="Sonidos" text="Tonos suaves al registrar, récords y medallas." on={p.sound} onToggle={() => toggle("sound")} />
       <div className="divider" />
       <Row Icon={Vibrate} title="Vibración" text="Toques suaves en los momentos clave." on={p.haptics} onToggle={() => toggle("haptics")} />
+      {p.haptics && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-2)", paddingBottom: "var(--sp-2)" }}>
+          <button className="btn btn-glass" style={{ minHeight: 40, fontSize: "var(--t-small)" }} onClick={() => fx("success")}>Probar vibración</button>
+          {iosHapticsSupported() === false && (
+            <p className="caption">Tu iPhone tiene una versión de iOS anterior a la 17.4, que no permite esta vibración desde una app web.</p>
+          )}
+          {iosHapticsSupported() !== null && iosHapticsSupported() !== false && (
+            <p className="caption">Si no la sientes, revisa en Ajustes → Sonidos y hápticos que «Hápticos del sistema» esté activado.</p>
+          )}
+        </div>
+      )}
     </section>
   );
 }

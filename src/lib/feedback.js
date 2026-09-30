@@ -70,27 +70,42 @@ const PATTERNS = {
   error: [30],
 };
 
-let iosSwitch = null;
+let iosLabel = null;
 const isIOS = () => typeof navigator !== "undefined" && (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
+
+// iOS 17.4 o más nuevo: Safari da un toque háptico cuando se activa un <input type="checkbox" switch>.
+// Funciona al llamar label.click() dentro de un gesto del usuario, con la etiqueta oculta en <head>.
+export const iosHapticsSupported = () => {
+  if (!isIOS()) return null;
+  const m = navigator.userAgent.match(/OS (\d+)[_.](\d+)/);
+  if (!m) return true; // no se puede saber: se intenta
+  return Number(m[1]) > 17 || (Number(m[1]) === 17 && Number(m[2]) >= 4);
+};
+
+function iosTap() {
+  if (!iosLabel) {
+    iosLabel = document.createElement("label");
+    iosLabel.setAttribute("aria-hidden", "true");
+    iosLabel.style.display = "none";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.setAttribute("switch", "");
+    iosLabel.appendChild(input);
+    document.head.appendChild(iosLabel);
+  }
+  iosLabel.click();
+}
 
 function buzz(name) {
   const pat = PATTERNS[name];
   if (!pat) return;
-  if (!isIOS() && navigator.vibrate) { navigator.vibrate(pat); return; }
-  if (!isIOS()) return;
-  // iPhone: alternar un <input type="checkbox" switch> genera un toque suave (requiere gesto del usuario).
-  if (!iosSwitch) {
-    const label = document.createElement("label");
-    label.setAttribute("aria-hidden", "true");
-    label.style.cssText = "position:fixed;left:-100px;top:-100px;width:1px;height:1px;opacity:0;pointer-events:none";
-    const input = document.createElement("input");
-    input.type = "checkbox";
-    input.setAttribute("switch", "");
-    label.appendChild(input);
-    document.body.appendChild(label);
-    iosSwitch = label;
-  }
-  iosSwitch.click();
+  if (!isIOS()) { navigator.vibrate?.(pat); return; }
+  // En iPhone no hay patrones: un toque por cada pulso, separados en el tiempo.
+  let at = 0;
+  pat.forEach((ms, i) => {
+    if (i % 2 === 0) { if (at === 0) iosTap(); else setTimeout(iosTap, at); } // el primero, dentro del gesto
+    at += ms;
+  });
 }
 
 // fx("success") → sonido y háptica según las preferencias del dispositivo.
