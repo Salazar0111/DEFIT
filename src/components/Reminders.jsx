@@ -52,7 +52,7 @@ export default function Reminders({ profile, onChange }) {
   return (
     <section className="glass" style={{ padding: "var(--sp-5)", display: "flex", flexDirection: "column", gap: "var(--sp-4)" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "var(--sp-3)" }}>
-        <h2>Recordatorios</h2>
+        <h2>Notificaciones</h2>
         {(status === "on" || status === "off") && (
           <Switch on={status === "on"} disabled={busy} onChange={toggle} label="Activar notificaciones" />
         )}
@@ -79,13 +79,14 @@ export default function Reminders({ profile, onChange }) {
         <p className="muted" style={{ fontSize: "var(--t-small)" }}>Este navegador no soporta notificaciones push.</p>
       )}
       {status === "off" && (
-        <p className="muted" style={{ fontSize: "var(--t-small)" }}>Actívalos para que DEFIT te avise solo cuando falte algo por registrar.</p>
+        <p className="muted" style={{ fontSize: "var(--t-small)" }}>Actívalas para recibir al instante retos, empujones y resultados, y recordatorios solo cuando falte algo por registrar.</p>
       )}
 
       <AnimatePresence initial={false}>
         {status === "on" && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
             style={{ overflow: "hidden", display: "flex", flexDirection: "column" }}>
+            <p className="caption" style={{ marginBottom: 4 }}>Retos, empujones y resultados llegan siempre al instante. Estos son tus recordatorios:</p>
             {REMINDERS.map((r, i) => (
               <div key={r.id} style={{ ...styles.row, borderTop: i ? "1px solid var(--hairline)" : "none" }}>
                 <div style={{ flex: 1, minWidth: 0 }}>

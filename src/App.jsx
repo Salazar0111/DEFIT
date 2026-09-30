@@ -12,6 +12,8 @@ import FoodScreen from "./screens/FoodScreen";
 import WeightScreen from "./screens/WeightScreen";
 import ChallengesScreen from "./screens/ChallengesScreen";
 import Sheet from "./components/Sheet";
+import { LockScreen } from "./components/LockScreen";
+import { lockConfig } from "./lib/lock";
 import Medal from "./components/Medal";
 import { useChallenges } from "./lib/useChallenges";
 import { medalById } from "./lib/medals";
@@ -38,6 +40,7 @@ export default function App() {
     return ["home", "food", "weight", "challenges", "profile"].includes(t) ? t : "home";
   });
   const [editingPlan, setEditingPlan] = useState(false);
+  const [locked, setLocked] = useState(false);
 
   useEffect(() => {
     if (DEMO) { setSession({ user: { id: "demo" } }); return; }
@@ -55,6 +58,19 @@ export default function App() {
   }, [session?.user.id]);
 
   useEffect(() => { if (profile) applyPalette(profile.palette); }, [profile?.palette]);
+
+  // Candado con Face ID: al abrir, y al volver después de 1 minuto en segundo plano.
+  useEffect(() => {
+    if (!profile?.id || DEMO) return;
+    if (lockConfig(profile.id)) setLocked(true);
+    let hiddenAt = 0;
+    const onVis = () => {
+      if (document.hidden) hiddenAt = Date.now();
+      else if (hiddenAt && Date.now() - hiddenAt > 60000 && lockConfig(profile.id)) setLocked(true);
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [profile?.id]);
 
   const patchProfile = (patch) => setProfile((p) => ({ ...p, ...patch }));
 
@@ -79,6 +95,9 @@ export default function App() {
     <>
       <div className="ambient" aria-hidden="true" />
       {content}
+      <AnimatePresence>
+        {locked && profile && <LockScreen key="lock" profile={profile} onUnlock={() => setLocked(false)} />}
+      </AnimatePresence>
     </>
   );
 }

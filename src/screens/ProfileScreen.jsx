@@ -6,6 +6,8 @@ import { AVATARS, avatarSrc } from "../lib/avatars";
 import { PALETTES } from "../lib/palettes";
 import Reminders from "../components/Reminders";
 import { PersonStats } from "../components/PersonCard";
+import InviteFriends from "../components/InviteFriends";
+import { LockToggle } from "../components/LockScreen";
 
 export default function ProfileScreen({ profile, ch, onChange, onEditPlan, planLocked }) {
   const [saving, setSaving] = useState(false);
@@ -85,7 +87,11 @@ export default function ProfileScreen({ profile, ch, onChange, onEditPlan, planL
         </div>
       </section>
 
+      <InviteFriends profile={profile} />
+
       <Reminders profile={profile} onChange={onChange} />
+
+      <LockToggle profile={profile} />
 
       <button className="btn btn-glass btn-block" onClick={onEditPlan}>
         {planLocked
