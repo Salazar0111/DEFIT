@@ -6,7 +6,7 @@ import { REMINDERS, disablePush, enablePush, pushStatus, sendTestPush } from "..
 
 const DEFAULTS = {
   breakfast: { on: true, at: "07:30" }, lunch: { on: true, at: "13:00" }, dinner: { on: true, at: "19:30" },
-  weigh: { on: true, at: "07:00" }, nudge: { on: true, at: "21:30" },
+  nudge: { on: true, at: "21:30" },
 };
 
 export default function Reminders({ profile, onChange }) {

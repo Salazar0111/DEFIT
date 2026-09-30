@@ -67,12 +67,6 @@ async function buildMessage(kind: string, p: Record<string, any>, day: string) {
     if (count) return null;
     return { title: `Hora de registrar tu ${meal}`, body: `${first}, toma una foto de tu plato y listo.`, url: "/?tab=food" };
   }
-  if (kind === "weigh") {
-    const { count } = await supabase.from("weight_logs").select("id", { count: "exact", head: true })
-      .eq("user_id", p.id).eq("day", day);
-    if (count) return null;
-    return { title: "Pésate antes de desayunar", body: "En ayunas es cuando el dato es más real.", url: "/?tab=weight" };
-  }
   if (kind === "nudge") {
     const { data } = await supabase.from("food_entries").select("kcal").eq("user_id", p.id).eq("day", day);
     const eaten = (data || []).reduce((t, e) => t + e.kcal, 0);

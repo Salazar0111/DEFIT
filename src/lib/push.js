@@ -6,7 +6,6 @@ export const REMINDERS = [
   { id: "breakfast", label: "Desayuno", hint: "Si no lo has registrado" },
   { id: "lunch", label: "Almuerzo", hint: "Si no lo has registrado" },
   { id: "dinner", label: "Cena", hint: "Si no la has registrado" },
-  { id: "weigh", label: "Pesarte", hint: "Si no te has pesado" },
   { id: "nudge", label: "Cierre del día", hint: "Tu resumen del día" },
 ];
 
