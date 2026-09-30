@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
-import { Check, ChevronRight, Dumbbell, Play, RefreshCw, Shuffle, Moon, TrendingUp } from "lucide-react";
+import { Check, ChevronRight, Dumbbell, Pencil, Play, RefreshCw, Shuffle, Moon } from "lucide-react";
 import { useEffect } from "react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { avatarSrc } from "../lib/avatars";
 import Sheet from "../components/Sheet";
 import WorkoutSession from "../components/WorkoutSession";
+import RoutineEditor from "../components/RoutineEditor";
 import { WEEKDAYS } from "../lib/plan";
 import { buildRoutine, exerciseById, templatesFor } from "../lib/exercises";
 
@@ -24,6 +25,7 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan }) {
   const [newRecords, setNewRecords] = useState(null);
   const [marks, setMarks] = useState([]);
   const [detail, setDetail] = useState(null);
+  const [editingDow, setEditingDow] = useState(null); // día de la semana cuya sesión se edita
 
   useEffect(() => { wk.myExercises().then(setMarks).catch(() => {}); }, [wk.logs.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -65,6 +67,14 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan }) {
     );
   }
 
+  const saveEdit = async (exercises) => {
+    const name = routine.days[editingDow].name;
+    const days = Object.fromEntries(Object.entries(routine.days).map(([dow, d]) =>
+      [dow, d.name === name ? { ...d, leg: exercises.some((e) => exerciseById(e.id)?.muscle === "legs"), exercises: exercises.map((e) => ({ ...e })) } : d]));
+    await wk.saveRoutine({ ...routine, days });
+    setEditingDow(null);
+  };
+
   const start = async (s) => {
     const r = await wk.lastSets(s.exercises.map((e) => e.id)).catch(() => ({ last: {}, best: {} }));
     setLast(r.last); setBest(r.best);
@@ -95,12 +105,13 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan }) {
             const done = weekDone.has(w.n);
             const isToday = w.n === todayDow;
             return (
-              <div key={w.n} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+              <button key={w.n} disabled={!planned} onClick={() => setEditingDow(w.n)} aria-label={planned ? `Editar ${planned.name} del ${w.long}` : w.long}
+                style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, color: "var(--text)" }}>
                 <span className="caption" style={{ fontWeight: isToday ? 700 : 400, color: isToday ? "var(--text)" : undefined }}>{w.short}</span>
                 <span style={{ ...styles.dayDot, ...(planned && (planned.leg ? styles.leg : styles.train)), ...(isToday && styles.today) }}>
                   {done ? <Check size={16} strokeWidth={3} /> : null}
                 </span>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -118,7 +129,12 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan }) {
 
       {plannedToday ? (
         <section className="glass" style={styles.card}>
-          <p className="eyebrow">Hoy toca</p>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <p className="eyebrow">Hoy toca</p>
+            <button className="btn btn-glass" style={{ minHeight: 36, padding: "0 14px", fontSize: "var(--t-caption)" }} onClick={() => setEditingDow(todayDow)}>
+              <Pencil size={14} strokeWidth={2} /> Editar
+            </button>
+          </div>
           <h1 style={{ fontSize: 30 }}>{plannedToday.name}</h1>
           <ul style={styles.list}>
             {plannedToday.exercises.map((e) => (
@@ -170,6 +186,11 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan }) {
 
       {createPortal(
         <>
+          {editingDow && routine.days[editingDow] && (
+            <RoutineEditor key={editingDow} session={routine.days[editingDow]}
+              sameCount={Object.values(routine.days).filter((d) => d.name === routine.days[editingDow].name).length}
+              onSave={saveEdit} onClose={() => setEditingDow(null)} />
+          )}
           <Sheet open={picking} onClose={() => setPicking(false)} title="¿Qué entrenaste?">
             <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-2)", paddingBottom: "var(--sp-3)" }}>
               {Object.values(routine.days).filter((d, i, a) => a.findIndex((x) => x.name === d.name) === i).map((d) => (
