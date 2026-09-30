@@ -203,12 +203,28 @@ function demoData(profile, today) {
     { user_id: profile.id, day: today, kcal: 1320 }, { user_id: "c", day: today, kcal: 1100 },
   ];
   const mk = (c) => withProgress(c, totals, today);
-  const people = { [profile.id]: profile, c: claudia };
+  const group = new URLSearchParams(location.search).has("grupo");
+  const extra = [
+    { id: "d", name: "Dani", avatar: "a6", onboarded: true },
+    { id: "e", name: "Vale", avatar: "a2", onboarded: true },
+  ];
+  if (group) {
+    totals.push(
+      ...[-3, -2, -1].map((n, i) => ({ user_id: "d", day: d(n), kcal: [1800, 1790, 1850][i] })),
+      ...[-3, -2, -1].map((n, i) => ({ user_id: "e", day: d(n), kcal: [1600, 2100, 1600][i] })),
+      { user_id: "d", day: today, kcal: 900 }, { user_id: "e", day: today, kcal: 1250 },
+    );
+  }
+  const people = { [profile.id]: profile, c: claudia, ...Object.fromEntries(extra.map((x) => [x.id, x])) };
   const challenges = [
     mk({ id: 1, created_by: "c", mode: "duration", length_days: 7, status: "active", start_day: d(-3), end_day: d(3),
       members: [
         { user_id: profile.id, status: "accepted", target_kcal: profile.target_kcal || 2119, days_done: 0, winner: false },
         { user_id: "c", status: "accepted", target_kcal: 1500, days_done: 0, winner: false },
+        ...(group ? [
+          { user_id: "d", status: "accepted", target_kcal: 1800, days_done: 0, winner: false },
+          { user_id: "e", status: "accepted", target_kcal: 1600, days_done: 0, winner: false },
+        ] : []),
       ] }),
     { id: 2, created_by: "c", mode: "first_to", length_days: 10, status: "pending", start_day: null, end_day: null,
       members: [
@@ -241,7 +257,7 @@ function demoData(profile, today) {
     { id: 1, from_user: "c", to_user: profile.id, kind: "cheer", created_at: ago(20) },
     { id: 2, from_user: "c", to_user: profile.id, kind: "tease", created_at: ago(12) },
   ] : [];
-  return { challenges, friends: [claudia], medals, activity, pokes, people };
+  return { challenges, friends: [claudia, ...extra], medals, activity, pokes, people };
 }
 
 function demoStats(me) {

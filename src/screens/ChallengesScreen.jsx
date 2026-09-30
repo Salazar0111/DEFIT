@@ -133,6 +133,9 @@ function ChallengeCard({ c, me, ch, today, onOpenPerson }) {
         <h2 style={{ marginTop: 4 }}>{challengeTitle(c)}</h2>
       </div>
 
+      {players.length > 2 ? (
+        <GroupBoard players={players} lead={lead} started={started} me={me} goal={goal} onOpenPerson={onOpenPerson} />
+      ) : (
       <div style={styles.vs}>
         {players.map((p, i) => (
           <div key={p.user_id} style={{ display: "contents" }}>
@@ -141,6 +144,7 @@ function ChallengeCard({ c, me, ch, today, onOpenPerson }) {
           </div>
         ))}
       </div>
+      )}
 
       {lead.tie && (
         <p className="caption" style={{ marginTop: "calc(var(--sp-2) * -1)" }}>
@@ -148,6 +152,7 @@ function ChallengeCard({ c, me, ch, today, onOpenPerson }) {
         </p>
       )}
 
+      {players.length <= 2 && (
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
         {players.map((p) => (
           <div key={p.user_id} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -171,9 +176,75 @@ function ChallengeCard({ c, me, ch, today, onOpenPerson }) {
           </div>
         ))}
       </div>
+      )}
 
       <EndChallenge c={c} me={me} ch={ch} />
     </motion.section>
+  );
+}
+
+// Retos de 3 o más: podio con los tres primeros y tabla de posiciones en vivo.
+const byRank = (a, b) => b.done - a.done || (a.dev ?? 1) - (b.dev ?? 1);
+
+function GroupBoard({ players, lead, started, me, goal, onOpenPerson }) {
+  const ranked = [...players].sort(byRank);
+  const podium = [ranked[1], ranked[0], ranked[2]].filter(Boolean); // 2.º, 1.º, 3.º
+  const name = (p) => (p.user_id === me ? "Tú" : p.profile?.name);
+  const heights = { 0: 88, 1: 64, 2: 48 }; // altura del escalón por posición (1.º, 2.º, 3.º)
+  return (
+    <>
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "flex-end", gap: "var(--sp-3)", paddingTop: "var(--sp-3)" }}>
+        {podium.map((p) => {
+          const pos = ranked.indexOf(p);
+          const first = pos === 0;
+          return (
+            <motion.button layout key={p.user_id} onClick={() => onOpenPerson(p.user_id)} transition={{ type: "spring", stiffness: 300, damping: 26 }}
+              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, width: 92, color: "var(--text)" }}>
+              <div style={{ position: "relative" }}>
+                {first && started && lead.ids.includes(p.user_id) && (
+                  <motion.span initial={{ y: 8, opacity: 0 }} animate={{ y: 0, opacity: 1, rotate: -12 }} style={{ ...styles.crown, top: -18 }}>
+                    <Crown size={22} strokeWidth={2} fill="#fcd34d" color="#a16207" />
+                  </motion.span>
+                )}
+                <motion.img key={`${p.done}-${p.today}`} src={avatarSrc(p.profile?.avatar, first && started && p.done > 0 ? "party" : undefined)} alt=""
+                  initial={{ scale: 0.85 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 420, damping: 12 }}
+                  style={{ width: first ? 72 : 58, height: first ? 72 : 58, borderRadius: "50%", display: "block",
+                    boxShadow: first ? "0 0 0 3px var(--accent)" : "0 0 0 1px var(--hairline)" }} />
+              </div>
+              <span style={{ fontWeight: 700, fontSize: "var(--t-caption)", maxWidth: 90, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name(p)}</span>
+              <div style={{ ...styles.step, height: heights[pos], ...(first && styles.stepFirst) }}>
+                <span className="num" style={{ fontWeight: 700, fontSize: 18 }}>{pos + 1}</span>
+              </div>
+            </motion.button>
+          );
+        })}
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column" }}>
+        {ranked.map((p, i) => (
+          <motion.button layout key={p.user_id} onClick={() => onOpenPerson(p.user_id)} transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            style={{ display: "flex", alignItems: "center", gap: "var(--sp-3)", padding: "10px 0", borderTop: "1px solid var(--hairline)", color: "var(--text)", textAlign: "left" }}>
+            <span className="num" style={{ width: 18, fontWeight: 700, color: "var(--text-2)" }}>{i + 1}</span>
+            <img src={avatarSrc(p.profile?.avatar)} alt="" style={{ width: 36, height: 36, borderRadius: "50%", flexShrink: 0 }} />
+            <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: "var(--t-small)" }}>
+                <span style={{ fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name(p)}</span>
+                <span className="num" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>{p.done}/{goal}</span>
+              </div>
+              <div style={{ ...styles.track, height: 6 }}>
+                <motion.div style={{ ...styles.fill, opacity: p.user_id === me ? 1 : 0.6 }} initial={false}
+                  animate={{ width: `${Math.min(p.done / goal, 1) * 100}%` }} transition={{ duration: 0.9, ease }} />
+              </div>
+              {p.today !== null && (
+                <span className="caption">
+                  Hoy {fmt(p.today)} de {fmt(p.target_kcal)}{inRange(p.today, p.target_kcal) && <span style={styles.ok}> · en rango</span>}
+                </span>
+              )}
+            </div>
+          </motion.button>
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -443,7 +514,10 @@ function NewChallenge({ ch, profile, onDone }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-5)" }}>
       <div>
-        <p className="eyebrow" style={{ marginBottom: "var(--sp-3)" }}>¿A quién retas?</p>
+        <p className="eyebrow" style={{ marginBottom: 4 }}>¿A quién retas?</p>
+        <p className="caption" style={{ marginBottom: "var(--sp-3)" }}>
+          {picked.length > 1 ? `Reto de grupo: ${picked.length + 1} personas` : "Puedes elegir a varios para un reto de grupo."}
+        </p>
         <div style={{ display: "flex", gap: "var(--sp-4)", flexWrap: "wrap" }}>
           {ch.friends.map((f) => {
             const on = picked.includes(f.id);
@@ -517,6 +591,14 @@ const styles = {
   vs: { display: "flex", alignItems: "center", justifyContent: "space-around", gap: "var(--sp-2)", padding: "var(--sp-2) 0" },
   vsTag: { fontWeight: 700, fontSize: 13, letterSpacing: "0.2em", color: "var(--text-2)" },
   avatar: { width: 84, height: 84, borderRadius: "50%", display: "block" },
+  step: {
+    width: "100%", display: "grid", placeItems: "center", borderRadius: "12px 12px 4px 4px",
+    background: "var(--field)", border: "1px solid var(--hairline)",
+  },
+  stepFirst: {
+    background: "linear-gradient(180deg, color-mix(in srgb, var(--accent) 35%, transparent), color-mix(in srgb, var(--accent) 10%, transparent))",
+    borderColor: "color-mix(in srgb, var(--accent) 45%, transparent)",
+  },
   endBtn: { minHeight: 36, fontSize: "var(--t-caption)", color: "var(--text-2)", gap: 6, padding: 0 },
   cancelAsk: {
     padding: "var(--sp-3) var(--sp-4)", borderRadius: "var(--r-md)",
