@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { motion } from "motion/react";
-import { Check, LogOut } from "lucide-react";
+import { Check, LogOut, SlidersHorizontal } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { AVATARS, avatarSrc } from "../lib/avatars";
 import { PALETTES } from "../lib/palettes";
 
-export default function ProfileScreen({ profile, onChange }) {
+export default function ProfileScreen({ profile, onChange, onEditPlan }) {
   const [saving, setSaving] = useState(false);
 
   const save = async (patch) => {
@@ -75,6 +75,10 @@ export default function ProfileScreen({ profile, onChange }) {
           })}
         </div>
       </section>
+
+      <button className="btn btn-glass btn-block" onClick={onEditPlan}>
+        <SlidersHorizontal size={18} strokeWidth={1.8} /> Ajustar mi plan
+      </button>
 
       <button className="btn btn-glass btn-block" onClick={() => supabase.auth.signOut()}>
         <LogOut size={18} strokeWidth={1.8} /> Cerrar sesión
