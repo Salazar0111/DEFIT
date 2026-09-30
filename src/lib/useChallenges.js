@@ -130,11 +130,10 @@ export function useChallenges(profile) {
     await supabase.from("medals").update({ seen: true }).in("id", unseen);
   };
 
-  const markPokesSeen = async () => {
-    const ids = state.pokes.map((p) => p.id);
-    if (!ids.length) return;
-    setState((s) => ({ ...s, pokes: [] }));
-    if (!demo) await supabase.from("pokes").update({ seen: true }).in("id", ids);
+  // Los empujones se muestran uno por uno, del más antiguo al más reciente.
+  const markPokeSeen = async (id) => {
+    setState((s) => ({ ...s, pokes: s.pokes.filter((p) => p.id !== id) }));
+    if (!demo) await supabase.from("pokes").update({ seen: true }).eq("id", id);
   };
 
   // Retos terminados cuyo resultado aún no he visto (para la celebración).
@@ -175,7 +174,7 @@ export function useChallenges(profile) {
     ...state,
     unseenResult,
     markResultSeen,
-    markPokesSeen,
+    markPokeSeen,
     stats,
     medalsOf,
     activeWith,
@@ -238,7 +237,10 @@ function demoData(profile, today) {
     { id: 2, kind: "challenge_accept", actor: "c", targets: [profile.id], data: { mode: "duration", length: 7 }, created_at: ago(60 * 80) },
     { id: 1, kind: "challenge_won", actor: profile.id, targets: ["c"], data: { days: 6, mode: "duration", length: 7 }, created_at: ago(60 * 24 * 14) },
   ];
-  const pokes = showMoments ? [{ id: 1, from_user: "c", to_user: profile.id, kind: "tease", created_at: ago(12) }] : [];
+  const pokes = showMoments ? [
+    { id: 1, from_user: "c", to_user: profile.id, kind: "cheer", created_at: ago(20) },
+    { id: 2, from_user: "c", to_user: profile.id, kind: "tease", created_at: ago(12) },
+  ] : [];
   return { challenges, friends: [claudia], medals, activity, pokes, people };
 }
 

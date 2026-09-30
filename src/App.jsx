@@ -96,7 +96,13 @@ function Main({ profile, tab, setTab, patchProfile, onEditPlan }) {
   const after = (fn) => () => { fn(); setPause(true); setTimeout(() => setPause(false), 650); };
   const result = !pause && ch.unseenResult;
   const newMedal = !pause && !result && ch.medals.find((m) => !m.seen);
-  const poke = !pause && !result && !newMedal && ch.pokes[ch.pokes.length - 1];
+  const poke = !pause && !result && !newMedal && ch.pokes[0];
+  // Cada empujón se cierra solo a los 6 s (o al tocarlo) y da paso al siguiente.
+  useEffect(() => {
+    if (!poke) return;
+    const t = setTimeout(after(() => ch.markPokeSeen(poke.id)), 6000);
+    return () => clearTimeout(t);
+  }, [poke?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Ofrece "Entrar con Face ID" una sola vez por dispositivo si aún no tiene llave.
   const [offerFaceId, setOfferFaceId] = useState(false);
@@ -151,7 +157,7 @@ function Main({ profile, tab, setTab, patchProfile, onEditPlan }) {
 
       <AnimatePresence>
         {poke && (
-          <motion.div key={poke.id} className="glass glass-strong" style={styles.poke} role="status" onClick={ch.markPokesSeen}
+          <motion.div key={poke.id} className="glass glass-strong" style={styles.poke} role="status" onClick={after(() => ch.markPokeSeen(poke.id))}
             initial={{ y: 200, x: "-50%", opacity: 0 }} animate={{ y: 0, x: "-50%", opacity: 1 }} exit={{ y: 200, x: "-50%", opacity: 0 }}
             transition={{ type: "spring", stiffness: 260, damping: 20 }}>
             <motion.img src={avatarSrc(ch.people[poke.from_user]?.avatar, poke.kind === "cheer" ? "party" : "surprised")} alt=""

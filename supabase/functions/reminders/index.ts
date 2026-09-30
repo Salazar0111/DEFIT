@@ -123,7 +123,8 @@ Deno.serve(async (req) => {
     if (body.event && Array.isArray(body.user_ids) && body.user_ids.length) {
       const { data: subs } = await supabase.from("push_subscriptions").select("endpoint, p256dh, auth").in("user_id", body.user_ids);
       const sent = await sendTo(subs || [], {
-        title: String(body.title || "DEFIT"), body: String(body.body || ""), url: String(body.url || "/"), tag: "challenge",
+        // Etiqueta única: con una etiqueta fija el teléfono reemplaza la notificación anterior.
+        title: String(body.title || "DEFIT"), body: String(body.body || ""), url: String(body.url || "/"), tag: `ev-${crypto.randomUUID()}`,
       });
       return json({ sent });
     }
