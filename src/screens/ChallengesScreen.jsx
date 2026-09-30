@@ -8,7 +8,7 @@ import Medal from "../components/Medal";
 import { Segmented } from "./AddFood";
 import { avatarSrc } from "../lib/avatars";
 import { MEDALS, MEDAL_GROUPS, medalById } from "../lib/medals";
-import { inRange } from "../lib/useChallenges";
+import { inRange, leaders } from "../lib/useChallenges";
 import { dayLabel } from "../lib/food";
 import { fmt } from "../lib/plan";
 
@@ -120,7 +120,7 @@ export default function ChallengesScreen({ profile, ch }) {
 // ─── Tarjeta de reto activo: enfrentamiento con avatares y progreso en vivo ──
 function ChallengeCard({ c, me, ch, today, onOpenPerson }) {
   const players = c.members.filter((m) => m.status === "accepted" && !m.forfeited).sort((a, b) => (a.user_id === me ? -1 : b.user_id === me ? 1 : 0));
-  const best = Math.max(...players.map((p) => p.done));
+  const lead = leaders(players);
   const started = today >= c.start_day;
   const dayN = started ? Math.min(between(c.start_day, today) + 1, between(c.start_day, c.end_day) + 1) : 0;
   const total = between(c.start_day, c.end_day) + 1;
@@ -137,17 +137,26 @@ function ChallengeCard({ c, me, ch, today, onOpenPerson }) {
         {players.map((p, i) => (
           <div key={p.user_id} style={{ display: "contents" }}>
             {i > 0 && <span style={styles.vsTag}>VS</span>}
-            <Player p={p} leader={started && best > 0 && p.done === best} isMe={p.user_id === me} onClick={() => onOpenPerson(p.user_id)} />
+            <Player p={p} leader={started && lead.ids.includes(p.user_id)} isMe={p.user_id === me} onClick={() => onOpenPerson(p.user_id)} />
           </div>
         ))}
       </div>
+
+      {lead.tie && (
+        <p className="caption" style={{ marginTop: "calc(var(--sp-2) * -1)" }}>
+          Empatados en días. Va ganando quien está más cerca de su meta en promedio.
+        </p>
+      )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
         {players.map((p) => (
           <div key={p.user_id} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--t-small)" }}>
               <span style={{ fontWeight: 700 }}>{p.user_id === me ? "Tú" : p.profile?.name}</span>
-              <span className="num" style={{ fontWeight: 700 }}>{p.done} / {goal} días</span>
+              <span className="num" style={{ fontWeight: 700 }}>
+                {p.done} / {goal} días
+                {lead.tie && p.dev != null && <span className="caption"> · {Math.max(0, Math.round((1 - p.dev) * 100))}% cerca</span>}
+              </span>
             </div>
             <div style={styles.track}>
               <motion.div style={{ ...styles.fill, opacity: p.user_id === me ? 1 : 0.6 }}
@@ -357,7 +366,7 @@ function describe(a, me, nameOf) {
     case "challenge_invite": return { Icon: Swords, text: <>{lead(v("Retaste", "Retó"))} a {them} · {what}</> };
     case "challenge_accept": return { Icon: Handshake, text: <>{lead(v("Aceptaste", "Aceptó"))} {whose}</> };
     case "challenge_decline": return { Icon: CircleX, text: <>{lead(v("Rechazaste", "Rechazó"))} {whose}</> };
-    case "challenge_won": return { Icon: Trophy, win: true, text: <>{lead(v("Le ganaste", "Le ganó"))} el reto a {them}{a.data?.days ? ` con ${a.data.days} días cumplidos` : ""}</> };
+    case "challenge_won": return { Icon: Trophy, win: true, text: <>{lead(v("Le ganaste", "Le ganó"))} el reto a {them}{a.data?.days ? ` con ${a.data.days} días cumplidos` : ""}{a.data?.decided_by === "closeness" ? " (desempate por cercanía a la meta)" : a.data?.decided_by === "forfeit" ? " (se rindió)" : ""}</> };
     case "challenge_draw": return { Icon: Flag, text: <>{mine ? <>Empataste con {them}</> : <>{who} y {them} empataron</>} el reto</> };
     case "challenge_forfeit": return { Icon: FlagOff, text: <>{lead(v("Te rendiste", "Se rindió"))} en el reto con {them}</> };
     case "challenge_cancelled": return { Icon: Ban, text: <>{mine ? <>Tú y {them}</> : <>{who} y {them}</>} cancelaron el reto</> };
@@ -456,8 +465,8 @@ function NewChallenge({ ch, profile, onDone }) {
           options={[{ id: "duration", label: "Por tiempo" }, { id: "first_to", label: "El primero en llegar" }]} />
         <p className="muted" style={{ fontSize: "var(--t-small)" }}>
           {mode === "duration"
-            ? "Gana quien más días cumpla su meta (entre 90% y 110%) durante el reto."
-            : "Gana el primero que acumule los días cumplidos. Plazo máximo: el doble de días."}
+            ? "Gana quien más días cumpla su meta (entre 90% y 110%) durante el reto. Si empatan, gana quien estuvo más cerca de su meta."
+            : "Gana el primero que acumule los días cumplidos. Plazo máximo: el doble de días. Si llegan el mismo día, gana quien estuvo más cerca de su meta."}
         </p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "var(--sp-2)" }}>
           {LENGTHS[mode].map((n) => (

@@ -238,7 +238,12 @@ function ResultCelebration({ c, me, onClose }) {
         ))}
       </div>
       <h1>{title}</h1>
-      <p className="muted">{challengeTitle(c)}. {iWon ? "Tienes una medalla nueva esperándote." : "Revancha cuando quieras."}</p>
+      <p className="muted">
+        {challengeTitle(c)}.{" "}
+        {c.decided_by === "closeness" && "Empataron en días; ganó quien estuvo más cerca de su meta. "}
+        {c.decided_by === "forfeit" && (iWon ? "Tu rival se rindió. " : "Te rendiste. ")}
+        {iWon ? "Tienes una medalla nueva esperándote." : "Revancha cuando quieras."}
+      </p>
       <button className="btn btn-primary btn-block" onClick={onClose}>{iWon ? "Ver mi medalla" : "Continuar"}</button>
     </div>
   );

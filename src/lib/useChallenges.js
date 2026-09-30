@@ -4,6 +4,29 @@ import { dayKey, shiftDay } from "./food";
 
 export const inRange = (kcal, target) => target > 0 && kcal >= target * 0.9 && kcal <= target * 1.1;
 
+// Desviación promedio frente a la meta en días cerrados (sin registro = 100%). Sirve de desempate.
+function deviation(totals, target, from, to) {
+  if (!target || !from || to < from) return null;
+  let sum = 0, n = 0;
+  for (let d = from; d <= to; d = shiftDay(d, 1)) {
+    const t = totals.find((x) => x.day === d);
+    sum += t ? Math.abs(t.kcal - target) / target : 1;
+    n++;
+  }
+  return n ? sum / n : null;
+}
+
+// Líder: más días cumplidos; si empatan, el más cercano a su meta.
+export function leaders(players) {
+  const live = players.filter((p) => !p.forfeited);
+  const best = Math.max(0, ...live.map((p) => p.done));
+  if (best === 0) return { ids: [], tie: false };
+  const top = live.filter((p) => p.done === best);
+  if (top.length === 1) return { ids: [top[0].user_id], tie: false };
+  const min = Math.min(...top.map((p) => p.dev ?? 1));
+  return { ids: top.filter((p) => (p.dev ?? 1) === min).map((p) => p.user_id), tie: true };
+}
+
 const ERRORS = {
   PLAN_REQUIRED: "Primero completa tu plan calórico.",
   PLAN_LOCKED: "No puedes cambiar tu plan mientras estás en un reto.",
@@ -28,7 +51,8 @@ function withProgress(ch, totals, today) {
       ? m.days_done
       : mine.filter((t) => t.day >= ch.start_day && t.day <= last && inRange(t.kcal, m.target_kcal)).length;
     const running = ch.status === "active" && today >= ch.start_day && today <= ch.end_day;
-    return { ...m, done, today: running ? (mine.find((t) => t.day === today)?.kcal || 0) : null };
+    const dev = ch.status === "finished" ? (m.deviation != null ? Number(m.deviation) : null) : deviation(mine, m.target_kcal, ch.start_day, last);
+    return { ...m, done, dev, today: running ? (mine.find((t) => t.day === today)?.kcal || 0) : null };
   });
   return { ...ch, members };
 }
@@ -176,7 +200,7 @@ function demoData(profile, today) {
   const d = (n) => shiftDay(today, n);
   const totals = [
     ...[-3, -2, -1].map((n, i) => ({ user_id: profile.id, day: d(n), kcal: [2100, 2400, 2050][i] })),
-    ...[-3, -2, -1].map((n, i) => ({ user_id: "c", day: d(n), kcal: [1500, 1480, 1390][i] })),
+    ...[-3, -2, -1].map((n, i) => ({ user_id: "c", day: d(n), kcal: [1500, 1480, 1700][i] })),
     { user_id: profile.id, day: today, kcal: 1320 }, { user_id: "c", day: today, kcal: 1100 },
   ];
   const mk = (c) => withProgress(c, totals, today);
