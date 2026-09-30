@@ -7,6 +7,7 @@ import { supabase } from "../lib/supabase";
 import { AVATARS, avatarSrc } from "../lib/avatars";
 import { PALETTES } from "../lib/palettes";
 import Reminders from "../components/Reminders";
+import PhotoTile from "../components/PhotoTile";
 import { PersonStats, PersonSheetContent } from "../components/PersonCard";
 import InviteFriends from "../components/InviteFriends";
 import PasskeySettings from "../components/PasskeySettings";
@@ -44,6 +45,7 @@ export default function ProfileScreen({ profile, ch, onChange, onEditPlan, planL
           <span className="caption">{saving ? "Guardando…" : ""}</span>
         </div>
         <div style={styles.avatarGrid}>
+          <PhotoTile userId={profile.id} current={profile.avatar} onPhoto={(url) => save({ avatar: url })} style={styles.avatarBtn} />
           {AVATARS.map((a) => {
             const active = a.id === profile.avatar;
             return (

@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { ChevronLeft, Check, TriangleAlert, X } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { AVATARS, avatarSrc } from "../lib/avatars";
+import PhotoTile from "../components/PhotoTile";
 import { PALETTES, applyPalette } from "../lib/palettes";
 import {
   DEFICITS, FRAMES, GOALS, LIFESTYLES, SESSION_MINUTES, TRAIN_TYPES, WEEKDAYS,
@@ -164,6 +165,7 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
                 </div>
                 <p className="eyebrow" style={{ marginTop: "var(--sp-2)" }}>Elige tu avatar</p>
                 <div style={styles.avatarGrid}>
+                  <PhotoTile userId={profile.id} current={d.avatar} onPhoto={(url) => set({ avatar: url })} style={styles.avatarBtn} />
                   {AVATARS.map((a) => (
                     <motion.button key={a.id} onClick={() => set({ avatar: a.id })} whileTap={{ scale: 0.88 }}
                       animate={{ scale: d.avatar === a.id ? 1.08 : 1 }} aria-label={a.name} aria-pressed={d.avatar === a.id}

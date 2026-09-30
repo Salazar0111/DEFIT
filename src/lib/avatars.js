@@ -14,7 +14,11 @@ export const AVATARS = [
 // Ánimos: /public/avatars/<id>/<mood>.svg (happy, sleepy, worried, party, surprised).
 export const MOODS = ["happy", "sleepy", "worried", "party", "surprised"];
 
+// Una foto de perfil se guarda en la misma columna `avatar`, como URL.
+export const isPhotoAvatar = (id) => typeof id === "string" && /^(https?:|blob:|data:)/.test(id);
+
 export const avatarSrc = (id, mood) => {
+  if (isPhotoAvatar(id)) return id;
   const a = AVATARS.some((x) => x.id === id) ? id : "a1";
   return mood && MOODS.includes(mood) ? `/avatars/${a}/${mood}.svg` : `/avatars/${a}.svg`;
 };
