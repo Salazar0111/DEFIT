@@ -74,3 +74,167 @@ export function computePlan({ sex, birthdate, height_cm, weight_kg, frame, activ
 }
 
 export const fmt = (n) => Math.round(n).toLocaleString("es-CO");
+
+// ─── Plan v2: vida diaria + entrenamiento por tipo de día + 5 objetivos ──────────────────
+
+export const LIFESTYLES = [
+  { id: "seated", label: "Sentado", hint: "Oficina, estudio o trabajo de escritorio.", factor: 1.2 },
+  { id: "standing", label: "De pie o caminando", hint: "Comercio, docencia, servicio o mucho movimiento.", factor: 1.35 },
+  { id: "physical", label: "Trabajo físico", hint: "Construcción, carga, campo o deporte como oficio.", factor: 1.5 },
+];
+
+export const TRAIN_TYPES = [
+  { id: "weights", label: "Pesas" },
+  { id: "cardio", label: "Cardio" },
+  { id: "both", label: "Ambos" },
+];
+
+export const SESSION_MINUTES = [45, 60, 90];
+
+// 1 = lunes … 7 = domingo (isodow, igual que la base de datos)
+export const WEEKDAYS = [
+  { n: 1, short: "L", long: "Lunes" }, { n: 2, short: "M", long: "Martes" }, { n: 3, short: "X", long: "Miércoles" },
+  { n: 4, short: "J", long: "Jueves" }, { n: 5, short: "V", long: "Viernes" }, { n: 6, short: "S", long: "Sábado" },
+  { n: 7, short: "D", long: "Domingo" },
+];
+
+export const GOALS = [
+  { id: "lose", label: "Bajar peso", hint: "Comer menos de lo que gastas." },
+  { id: "recomp", label: "Recomposición", hint: "Bajar grasa y ganar músculo a la vez. Exige pesas." },
+  { id: "maintain", label: "Mantener", hint: "Comer lo mismo que gastas." },
+  { id: "gain_clean", label: "Ganar peso limpio", hint: "+10% sobre tu gasto. Sube músculo con poca grasa." },
+  { id: "gain_fast", label: "Ganar peso más rápido", hint: "+20% sobre tu gasto. Sube más, sobre todo grasa." },
+];
+
+export const DAY_TYPES = [
+  { id: "rest", label: "Descanso" },
+  { id: "train", label: "Entreno" },
+  { id: "leg", label: "Pierna" },
+];
+
+// MET de referencia (Compendio de Actividad Física 2024). Se resta 1 para no contar dos veces el basal.
+const MET = {
+  leg: { moderate: 5.0, intense: 6.0 },
+  weights: { moderate: 3.5, intense: 4.5 },
+  cardio: { moderate: 5.5, intense: 7.0 },
+  both: { moderate: 4.5, intense: 5.5 },
+};
+
+const round = (n) => Math.round(n);
+
+// type: "leg", "weights", "cardio" o "both".
+export function trainKcal(type, intensity, minutes, weight) {
+  const met = MET[type]?.[intensity] ?? 0;
+  return Math.max(0, round((met - 1) * weight * (minutes / 60)));
+}
+
+// Metabolismo basal: Katch-McArdle si se conoce la grasa corporal; si no, Mifflin-St Jeor con ajuste por contextura.
+export function basal({ sex, age, height_cm, weight_kg, frame, body_fat }) {
+  const w = Number(weight_kg), h = Number(height_cm);
+  if (body_fat) {
+    const lbm = w * (1 - Number(body_fat) / 100);
+    return round(370 + 21.6 * lbm);
+  }
+  const mifflin = 10 * w + 6.25 * h - 5 * age + (sex === "m" ? 5 : -161);
+  return round(mifflin * (1 + (FRAMES.find((f) => f.id === frame)?.adj ?? 0)));
+}
+
+export const defaultMinutes = 60;
+
+// Devuelve el plan completo: metas por tipo de día, meta promedio, proteína, advertencias y cambio estimado.
+export function computePlanV2(d) {
+  const age = ageFrom(d.birthdate);
+  const w = Number(d.weight_kg);
+  if (!d.sex || !age || !w || !Number(d.height_cm) || !d.lifestyle || !d.goal) return null;
+
+  const bmr = basal({ ...d, age });
+  const base = round(bmr * LIFESTYLES.find((l) => l.id === d.lifestyle).factor);
+  const trains = !!d.trains && (d.train_days || []).length > 0;
+  const trainType = d.train_type || "weights";
+  const minutes = d.session_min || defaultMinutes;
+  const intensity = d.intensity || "moderate";
+  const legDays = trainType === "cardio" ? [] : (d.leg_days || []).filter((n) => (d.train_days || []).includes(n));
+  const plainDays = trains ? (d.train_days || []).filter((n) => !legDays.includes(n)) : [];
+
+  const burn = {
+    rest: 0,
+    train: trains ? trainKcal(trainType, intensity, minutes, w) : 0,
+    leg: trains ? trainKcal(trainType === "cardio" ? "cardio" : "leg", intensity, minutes, w) : 0,
+  };
+  const exp = { rest: base, train: base + burn.train, leg: base + burn.leg };
+  const count = { rest: 7 - plainDays.length - legDays.length, train: plainDays.length, leg: legDays.length };
+  const weeklyExp = exp.rest * count.rest + exp.train * count.train + exp.leg * count.leg;
+  const avgExp = weeklyExp / 7;
+
+  // Ajuste por objetivo sobre el gasto promedio.
+  const deficit = d.goal === "lose" ? d.deficit || 600 : 0;
+  const adj = { lose: -deficit, recomp: -0.1 * avgExp, maintain: 0, gain_clean: 0.1 * avgExp, gain_fast: 0.2 * avgExp }[d.goal];
+  const avgTarget = avgExp + adj;
+
+  let targets;
+  if (d.target_mode === "fixed" || !trains) {
+    targets = { rest: round(avgTarget), train: round(avgTarget), leg: round(avgTarget) };
+  } else if (d.goal === "recomp" && count.rest > 0) {
+    // Recomposición: los días de entreno quedan en mantenimiento y el déficit va en los descansos (con tope).
+    const totalDeficit = -adj * 7;
+    const perRest = Math.min(totalDeficit / count.rest, exp.rest * 0.25);
+    const left = totalDeficit - perRest * count.rest;
+    const trainDays = count.train + count.leg;
+    const perTrain = trainDays ? left / trainDays : 0;
+    targets = { rest: round(exp.rest - perRest), train: round(exp.train - perTrain), leg: round(exp.leg - perTrain) };
+  } else {
+    // Mismo ajuste total, repartido según lo que cada día gasta.
+    targets = { rest: round(exp.rest + adj), train: round(exp.train + adj), leg: round(exp.leg + adj) };
+  }
+  const weeklyTarget = targets.rest * count.rest + targets.train * count.train + targets.leg * count.leg;
+  const target = round(weeklyTarget / 7);
+
+  const floor = FLOOR[d.sex];
+  const lowest = Math.min(...Object.entries(targets).filter(([k]) => count[k] > 0).map(([, v]) => v));
+  const warnings = [];
+  if (adj < 0 && lowest < floor) {
+    warnings.push(`Tu día más bajo quedaría en ${fmt(lowest)} kcal, por debajo del mínimo de referencia de ${fmt(floor)} kcal.`);
+  } else if (adj < 0 && lowest < bmr) {
+    warnings.push(`Tu día más bajo quedaría por debajo de tu metabolismo basal (${fmt(bmr)} kcal). Es sostenible por poco tiempo.`);
+  }
+  if (d.goal === "lose" && deficit / avgExp > 0.35) {
+    warnings.push(`Es un recorte del ${Math.round((deficit / avgExp) * 100)}% de tu gasto diario. Consúltalo con un profesional.`);
+  }
+  if (d.goal === "gain_fast") {
+    warnings.push(trains
+      ? "Con +20% la evidencia muestra que sumas sobre todo grasa, no más músculo. +10% rinde igual con menos grasa."
+      : "Sin entrenar con pesas, el peso que ganes será mayormente grasa.");
+  }
+  if (d.goal === "gain_clean" && !trains) {
+    warnings.push("Sin entrenar con pesas, el peso que ganes será mayormente grasa.");
+  }
+
+  // Proteína (g/kg): más alta al bajar o recomponer y al entrenar.
+  const gkg = trains
+    ? { lose: 2.2, recomp: 2.2, maintain: 1.8, gain_clean: 2.0, gain_fast: 2.0 }[d.goal]
+    : { lose: 1.8, recomp: 1.8, maintain: 1.6, gain_clean: 1.6, gain_fast: 1.6 }[d.goal];
+  const protein = round(gkg * w);
+
+  return {
+    age, bmr, base, burn, exp, count, targets, target, protein, floor, warnings, trains,
+    legDays, plainDays,
+    avgExp: round(avgExp),
+    adjustment: round(adj),
+    weeklyKg: Math.round(((weeklyTarget - weeklyExp) / 7700) * 100) / 100,
+  };
+}
+
+// Tipo de día según el calendario del plan (isodow 1–7).
+export function scheduledType(profile, dateStr) {
+  const dow = ((new Date(dateStr + "T12:00:00").getDay() + 6) % 7) + 1;
+  if ((profile.leg_days || []).includes(dow)) return "leg";
+  if ((profile.train_days || []).includes(dow)) return "train";
+  return "rest";
+}
+
+// Meta de un día: cambio puntual (si hay) o calendario; las cuentas con plan v1 tienen una sola meta.
+export function dayTarget(profile, dateStr, override) {
+  if (!profile.targets || (profile.plan_version || 1) < 2) return { type: null, target: profile.target_kcal || 0 };
+  const type = override || scheduledType(profile, dateStr);
+  return { type, target: profile.targets[type] ?? profile.target_kcal };
+}

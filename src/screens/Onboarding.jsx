@@ -4,12 +4,16 @@ import { ChevronLeft, Check, TriangleAlert, X } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { AVATARS, avatarSrc } from "../lib/avatars";
 import { PALETTES, applyPalette } from "../lib/palettes";
-import { ACTIVITIES, DEFICITS, FRAMES, ageFrom, computePlan, fmt } from "../lib/plan";
+import {
+  DEFICITS, FRAMES, GOALS, LIFESTYLES, SESSION_MINUTES, TRAIN_TYPES, WEEKDAYS,
+  ageFrom, computePlanV2, fmt,
+} from "../lib/plan";
 
 const ease = [0.16, 1, 0.3, 1];
 
 // edit = true: solo los pasos del plan (desde Perfil u Hoy), con opción de cancelar.
 export default function Onboarding({ profile, edit = false, onDone, onCancel }) {
+  const v2 = (profile.plan_version || 1) >= 2;
   const [d, setD] = useState({
     name: profile.name || "",
     avatar: profile.avatar || "a1",
@@ -18,9 +22,17 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
     birthdate: profile.birthdate || "",
     height_cm: profile.height_cm ?? "",
     weight_kg: profile.weight_kg ?? "",
+    body_fat: profile.body_fat ?? "",
     frame: profile.frame || null,
-    activity: profile.activity || null,
-    goal: profile.deficit > 0 ? "deficit" : profile.deficit === 0 ? "maintain" : null,
+    lifestyle: v2 ? profile.lifestyle : null,
+    trains: v2 ? profile.trains : null,
+    train_type: v2 ? profile.train_type : null,
+    train_days: v2 ? profile.train_days || [] : [],
+    leg_days: v2 ? profile.leg_days || [] : [],
+    session_min: profile.session_min || 60,
+    intensity: profile.intensity || "moderate",
+    target_mode: profile.target_mode || "by_day",
+    goal: v2 ? profile.goal : profile.deficit > 0 ? "lose" : profile.onboarded ? "maintain" : null,
     deficit: profile.deficit > 0 ? profile.deficit : 600,
   });
   const [ack, setAck] = useState(false);
@@ -29,14 +41,22 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const set = (patch) => { setD((x) => ({ ...x, ...patch })); setAck(false); };
-  const deficit = d.goal === "deficit" ? d.deficit : 0;
-  const plan = useMemo(() => computePlan({ ...d, deficit }), [d, deficit]);
+  // patch puede ser una función del estado actual (evita perder toques rápidos seguidos).
+  const set = (patch) => { setD((x) => ({ ...x, ...(typeof patch === "function" ? patch(x) : patch) })); setAck(false); };
+  const deficit = d.goal === "lose" ? d.deficit : 0;
+  const plan = useMemo(() => computePlanV2({ ...d, deficit }), [d, deficit]);
+  const weights = d.trains && d.train_type !== "cardio";
 
   const steps = [
     !edit && "welcome",
     !edit && "palette",
-    "sex", "birthdate", "body", "frame", "activity", "goal", "summary",
+    "sex", "birthdate", "body", "frame", "lifestyle", "trains",
+    d.trains && "ttype",
+    d.trains && "days",
+    weights && d.train_days.length > 0 && "legs",
+    d.trains && "session",
+    d.trains && "mode",
+    "goal", "summary",
   ].filter(Boolean);
   const current = steps[step];
 
@@ -48,8 +68,14 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
     birthdate: age >= 14 && age <= 100,
     body: Number(d.height_cm) >= 120 && Number(d.height_cm) <= 230 && Number(d.weight_kg) >= 30 && Number(d.weight_kg) <= 300,
     frame: !!d.frame,
-    activity: !!d.activity,
-    goal: !!d.goal && (!plan?.warnings.length || ack),
+    lifestyle: !!d.lifestyle,
+    trains: d.trains !== null,
+    ttype: !!d.train_type,
+    days: d.train_days.length > 0,
+    legs: true,
+    session: true,
+    mode: true,
+    goal: !!d.goal && (!plan?.warnings.filter((w) => !w.startsWith("Con +20%") && !w.startsWith("Sin entrenar")).length || ack),
     summary: !!plan,
   }[current];
 
@@ -58,17 +84,31 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
   const finish = async () => {
     setSaving(true);
     setError("");
+    const trains = !!d.trains && d.train_days.length > 0;
     const patch = {
       sex: d.sex,
       birthdate: d.birthdate,
       height_cm: Number(d.height_cm),
       weight_kg: Number(d.weight_kg),
+      body_fat: d.body_fat === "" ? null : Number(d.body_fat),
       frame: d.frame,
-      activity: d.activity,
+      activity: null,
+      lifestyle: d.lifestyle,
+      trains,
+      train_type: trains ? d.train_type : null,
+      train_days: trains ? d.train_days : [],
+      leg_days: trains && weights ? plan.legDays : [],
+      session_min: trains ? d.session_min : null,
+      intensity: trains ? d.intensity : null,
+      goal: d.goal,
+      target_mode: d.target_mode,
       deficit,
       bmr: plan.bmr,
-      tdee: plan.tdee,
+      tdee: plan.avgExp,
       target_kcal: plan.target,
+      targets: plan.targets,
+      protein_g: plan.protein,
+      plan_version: 2,
       plan_updated_at: new Date().toISOString(),
       onboarded: true,
       ...(!edit && { name: d.name.trim(), avatar: d.avatar, palette: d.palette }),
@@ -148,7 +188,7 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
 
             {current === "sex" && (
               <>
-                <Head eyebrow="Tu cuerpo · 1 de 5" title="¿Cuál es tu sexo biológico?" text="Cambia la fórmula de tu metabolismo basal." />
+                <Head eyebrow="Tu cuerpo" title="¿Cuál es tu sexo biológico?" text="Cambia la fórmula de tu metabolismo basal." />
                 <Option active={d.sex === "f"} title="Mujer" onClick={() => set({ sex: "f" })} />
                 <Option active={d.sex === "m"} title="Hombre" onClick={() => set({ sex: "m" })} />
               </>
@@ -156,7 +196,7 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
 
             {current === "birthdate" && (
               <>
-                <Head eyebrow="Tu cuerpo · 2 de 5" title="¿Cuándo naciste?" text="Tu edad se actualiza sola cada año." />
+                <Head eyebrow="Tu cuerpo" title="¿Cuándo naciste?" text="Tu edad se actualiza sola cada año." />
                 <div className="field">
                   <label htmlFor="ob-birth">Fecha de nacimiento</label>
                   <input id="ob-birth" type="date" value={d.birthdate} max={new Date().toISOString().slice(0, 10)}
@@ -168,53 +208,153 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
 
             {current === "body" && (
               <>
-                <Head eyebrow="Tu cuerpo · 3 de 5" title="Altura y peso actual" text="Pésate en ayunas para un dato real." />
+                <Head eyebrow="Tu cuerpo" title="Altura y peso actual" text="Pésate en ayunas para un dato real." />
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--sp-3)" }}>
                   <BigNumber id="ob-h" label="Altura" unit="cm" value={d.height_cm} onChange={(v) => set({ height_cm: v })} />
                   <BigNumber id="ob-w" label="Peso" unit="kg" value={d.weight_kg} step="0.1" onChange={(v) => set({ weight_kg: v })} />
                 </div>
+                <BigNumber id="ob-bf" label="% de grasa (opcional)" unit="%" value={d.body_fat} step="0.1" onChange={(v) => set({ body_fat: v })} />
+                <p className="caption">Si no lo sabes, déjalo vacío. Con este dato el cálculo es más preciso en personas con mucho músculo.</p>
               </>
             )}
 
             {current === "frame" && (
               <>
-                <Head eyebrow="Tu cuerpo · 4 de 5" title="¿Cuál es tu contextura?" text="Ajusta levemente tu metabolismo basal." />
+                <Head eyebrow="Tu cuerpo" title="¿Cuál es tu contextura?" text="Ajusta levemente tu metabolismo basal." />
                 {FRAMES.map((f) => (
                   <Option key={f.id} active={d.frame === f.id} title={f.label} text={f.hint} onClick={() => set({ frame: f.id })} />
                 ))}
               </>
             )}
 
-            {current === "activity" && (
+            {current === "lifestyle" && (
               <>
-                <Head eyebrow="Tu cuerpo · 5 de 5" title="¿Qué tanto entrenas?" text="Define cuántas calorías quemas entrenando." />
-                {ACTIVITIES.map((a) => {
-                  const p = computePlan({ ...d, activity: a.id, deficit: 0 });
-                  return (
-                    <Option key={a.id} active={d.activity === a.id} title={a.label} text={a.hint} onClick={() => set({ activity: a.id })}
-                      trail={p?.training > 0 && <span className="num" style={styles.trail}>+{fmt(p.training)}<small> kcal</small></span>} />
-                  );
-                })}
+                <Head eyebrow="Tu día" title="¿Cómo es tu día fuera del gym?" text="Cuenta tu trabajo y lo que caminas, sin contar el entrenamiento." />
+                {LIFESTYLES.map((l) => (
+                  <Option key={l.id} active={d.lifestyle === l.id} title={l.label} text={l.hint} onClick={() => set({ lifestyle: l.id })} />
+                ))}
+              </>
+            )}
+
+            {current === "trains" && (
+              <>
+                <Head eyebrow="Tu entrenamiento" title="¿Entrenas?" text="Si entrenas, ajustamos tus calorías según los días y el tipo de entreno." />
+                <Option active={d.trains === true} title="Sí, entreno" text="Gimnasio, deporte o cardio con constancia."
+                  onClick={() => set({ trains: true, train_type: d.train_type || "weights" })} />
+                <Option active={d.trains === false} title="No por ahora" text="Sin rutina de ejercicio regular."
+                  onClick={() => set({ trains: false, goal: d.goal === "recomp" ? null : d.goal })} />
+              </>
+            )}
+
+            {current === "ttype" && (
+              <>
+                <Head eyebrow="Tu entrenamiento" title="¿Qué haces?" />
+                {TRAIN_TYPES.map((t) => (
+                  <Option key={t.id} active={d.train_type === t.id} title={t.label}
+                    onClick={() => set({ train_type: t.id, leg_days: t.id === "cardio" ? [] : d.leg_days, goal: t.id === "cardio" && d.goal === "recomp" ? null : d.goal })} />
+                ))}
+              </>
+            )}
+
+            {current === "days" && (
+              <>
+                <Head eyebrow="Tu entrenamiento" title="¿Qué días entrenas?" text="Toca los días de tu semana." />
+                <div style={styles.weekRow}>
+                  {WEEKDAYS.map((w) => {
+                    const on = d.train_days.includes(w.n);
+                    return (
+                      <motion.button key={w.n} whileTap={{ scale: 0.9 }} aria-pressed={on} aria-label={w.long}
+                        onClick={() => set((x) => {
+                          const has = x.train_days.includes(w.n);
+                          return {
+                            train_days: has ? x.train_days.filter((n) => n !== w.n) : [...x.train_days, w.n].sort(),
+                            leg_days: has ? x.leg_days.filter((n) => n !== w.n) : x.leg_days,
+                          };
+                        })}
+                        style={{ ...styles.dayBtn, ...(on && styles.dayOn) }}>
+                        {w.short}
+                      </motion.button>
+                    );
+                  })}
+                </div>
+                <p className="muted" style={{ textAlign: "center" }}>
+                  {d.train_days.length ? `${d.train_days.length} ${d.train_days.length === 1 ? "día" : "días"} a la semana` : "Elige al menos un día"}
+                </p>
+              </>
+            )}
+
+            {current === "legs" && (
+              <>
+                <Head eyebrow="Tu entrenamiento" title="¿Cuáles son de pierna?" text="La pierna gasta más y pide más carbohidratos. Toca los días en que la entrenas, o ninguno." />
+                <div style={styles.weekRow}>
+                  {WEEKDAYS.map((w) => {
+                    const trains = d.train_days.includes(w.n);
+                    const on = d.leg_days.includes(w.n);
+                    return (
+                      <motion.button key={w.n} whileTap={{ scale: 0.9 }} disabled={!trains} aria-pressed={on} aria-label={w.long}
+                        onClick={() => set((x) => ({ leg_days: x.leg_days.includes(w.n) ? x.leg_days.filter((n) => n !== w.n) : [...x.leg_days, w.n].sort() }))}
+                        style={{ ...styles.dayBtn, ...(!trains && styles.dayOff), ...(on && styles.legOn) }}>
+                        {w.short}
+                      </motion.button>
+                    );
+                  })}
+                </div>
+                <p className="muted" style={{ textAlign: "center" }}>
+                  {d.leg_days.length ? `${d.leg_days.length} ${d.leg_days.length === 1 ? "día" : "días"} de pierna` : "Ningún día de pierna"}
+                </p>
+              </>
+            )}
+
+            {current === "session" && (
+              <>
+                <Head eyebrow="Tu entrenamiento" title="¿Cuánto dura y qué tan duro?" />
+                <p className="eyebrow">Duración de cada sesión</p>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "var(--sp-2)" }}>
+                  {SESSION_MINUTES.map((m) => (
+                    <button key={m} onClick={() => set({ session_min: m })} aria-pressed={d.session_min === m}
+                      style={{ ...styles.chip, ...(d.session_min === m && styles.chipOn) }}>
+                      <span className="num" style={{ fontSize: 22, fontWeight: 700 }}>{m}</span>
+                      <span style={{ fontSize: "var(--t-caption)" }}>min</span>
+                    </button>
+                  ))}
+                </div>
+                <p className="eyebrow" style={{ marginTop: "var(--sp-3)" }}>Intensidad</p>
+                <Option active={d.intensity === "moderate"} title="Moderada" text="Terminas cansado, pero con reserva." onClick={() => set({ intensity: "moderate" })} />
+                <Option active={d.intensity === "intense"} title="Intensa" text="Llegas cerca del límite en casi todas las series." onClick={() => set({ intensity: "intense" })} />
+              </>
+            )}
+
+            {current === "mode" && (
+              <>
+                <Head eyebrow="Tu meta diaria" title="¿Cómo quieres tu meta?" text="Con la misma cantidad total de la semana, solo cambia cómo se reparte." />
+                <Option active={d.target_mode === "by_day"} title="Según el día (recomendado)"
+                  text="Más calorías los días de entreno y pierna, menos en descanso."
+                  onClick={() => set({ target_mode: "by_day" })} />
+                <Option active={d.target_mode === "fixed"} title="La misma todos los días"
+                  text="Una sola meta, sin cambiar nada cada día." onClick={() => set({ target_mode: "fixed" })} />
               </>
             )}
 
             {current === "goal" && (
               <>
-                <Head eyebrow="Tu objetivo" title="¿Qué quieres lograr?" text={plan ? `Tu gasto diario es de ${fmt(plan.tdee)} kcal.` : ""} />
-                <Option active={d.goal === "maintain"} title="Mantenerme" text="Comer lo mismo que gasto."
-                  onClick={() => set({ goal: "maintain" })}
-                  trail={plan && <span className="num" style={styles.trail}>{fmt(plan.tdee)}<small> kcal</small></span>} />
-                <Option active={d.goal === "deficit"} title="Bajar de peso" text="Comer menos de lo que gasto."
-                  onClick={() => set({ goal: "deficit" })} />
+                <Head eyebrow="Tu objetivo" title="¿Qué quieres lograr?"
+                  text={plan ? `Tu gasto promedio es de ${fmt(plan.avgExp)} kcal al día.` : ""} />
+                {GOALS.filter((g) => g.id !== "recomp" || weights).map((g) => {
+                  const p = computePlanV2({ ...d, goal: g.id, deficit: g.id === "lose" ? d.deficit : 0 });
+                  return (
+                    <Option key={g.id} active={d.goal === g.id} title={g.label} text={g.hint} onClick={() => set({ goal: g.id })}
+                      trail={p && <span className="num" style={styles.trail}>{fmt(p.target)}<small> kcal</small></span>} />
+                  );
+                })}
 
                 <AnimatePresence>
-                  {d.goal === "deficit" && (
+                  {d.goal === "lose" && (
                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
                       transition={{ duration: 0.3, ease }} style={{ overflow: "hidden" }}>
                       <p className="eyebrow" style={{ margin: "var(--sp-3) 0 var(--sp-2)" }}>Nivel de déficit en comida</p>
                       <div style={styles.levels}>
                         {DEFICITS.map((lv) => {
-                          const p = computePlan({ ...d, deficit: lv.kcal });
+                          const p = computePlanV2({ ...d, goal: "lose", deficit: lv.kcal });
                           const active = d.deficit === lv.kcal;
                           return (
                             <button key={lv.kcal} onClick={() => set({ deficit: lv.kcal })} aria-pressed={active}
@@ -228,50 +368,80 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
                           );
                         })}
                       </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
-                      <AnimatePresence>
-                        {plan?.warnings.length > 0 && (
-                          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={styles.warn}>
-                            <div style={{ display: "flex", gap: "var(--sp-2)", alignItems: "flex-start" }}>
-                              <TriangleAlert size={18} strokeWidth={2} style={{ color: "var(--danger)", flexShrink: 0, marginTop: 2 }} />
-                              <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-1)" }}>
-                                {plan.warnings.map((w) => <p key={w} style={{ fontSize: "var(--t-small)" }}>{w}</p>)}
-                              </div>
-                            </div>
-                            <label style={styles.ack}>
-                              <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} style={{ accentColor: "var(--accent-strong)", width: 20, height: 20 }} />
-                              <span style={{ fontSize: "var(--t-small)", fontWeight: 700 }}>Entiendo el riesgo y quiero este nivel</span>
-                            </label>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
+                <AnimatePresence>
+                  {plan?.warnings.length > 0 && (
+                    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={styles.warn}>
+                      <div style={{ display: "flex", gap: "var(--sp-2)", alignItems: "flex-start" }}>
+                        <TriangleAlert size={18} strokeWidth={2} style={{ color: "var(--danger)", flexShrink: 0, marginTop: 2 }} />
+                        <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-1)" }}>
+                          {plan.warnings.map((w) => <p key={w} style={{ fontSize: "var(--t-small)" }}>{w}</p>)}
+                        </div>
+                      </div>
+                      {plan.warnings.some((w) => !w.startsWith("Con +20%") && !w.startsWith("Sin entrenar")) && (
+                        <label style={styles.ack}>
+                          <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} style={{ accentColor: "var(--accent-strong)", width: 20, height: 20 }} />
+                          <span style={{ fontSize: "var(--t-small)", fontWeight: 700 }}>Entiendo el riesgo y quiero este nivel</span>
+                        </label>
+                      )}
                     </motion.div>
                   )}
                 </AnimatePresence>
               </>
             )}
 
-            {current === "summary" && plan && (
-              <>
-                <Head eyebrow="Tu plan" title="Esta es tu meta diaria" />
-                <div className="glass" style={styles.hero}>
-                  <motion.span className="num" style={styles.heroNum}
-                    initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.5, ease }}>
-                    {fmt(plan.target)}
-                  </motion.span>
-                  <span className="muted" style={{ fontWeight: 700 }}>kcal para comer al día</span>
-                </div>
-                <div className="glass" style={{ padding: "var(--sp-2) var(--sp-4)" }}>
-                  <Row label="Metabolismo basal" value={`${fmt(plan.bmr)} kcal`} />
-                  <Row label="Quemas entrenando" value={plan.training > 0 ? `+${fmt(plan.training)} kcal` : "Sin entrenamiento"} />
-                  <Row label="Gasto total diario" value={`${fmt(plan.tdee)} kcal`} strong />
-                  {deficit > 0 && <Row label="Déficit en comida" value={`−${fmt(deficit)} kcal`} />}
-                  {deficit > 0 && <Row label="Cambio estimado" value={`−${plan.weeklyKg.toLocaleString("es-CO")} kg por semana`} last />}
-                  {deficit === 0 && <Row label="Objetivo" value="Mantener tu peso" last />}
-                </div>
-                {error && <p role="alert" style={{ color: "var(--danger)", fontWeight: 700, fontSize: "var(--t-small)" }}>{error}</p>}
-              </>
-            )}
+            {current === "summary" && plan && (() => {
+              const oldTarget = profile.onboarded ? profile.target_kcal : null;
+              const diff = oldTarget ? plan.target - oldTarget : 0;
+              const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Bogota" });
+              const goalLabel = GOALS.find((g) => g.id === d.goal)?.label;
+              return (
+                <>
+                  <Head eyebrow="Tu plan" title={oldTarget ? "Tu nueva meta" : "Esta es tu meta diaria"} />
+                  <div className="glass" style={styles.hero}>
+                    <motion.span className="num" style={styles.heroNum}
+                      initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.5, ease }}>
+                      {fmt(plan.target)}
+                    </motion.span>
+                    <span className="muted" style={{ fontWeight: 700 }}>
+                      kcal al día{plan.trains && d.target_mode === "by_day" ? " en promedio" : ""} · {goalLabel}
+                    </span>
+                    {oldTarget > 0 && (
+                      <span className="num" style={{ fontWeight: 700, fontSize: "var(--t-small)" }}>
+                        Antes {fmt(oldTarget)} → Ahora {fmt(plan.target)} ({diff > 0 ? "+" : "−"}{fmt(Math.abs(diff))})
+                      </span>
+                    )}
+                  </div>
+
+                  {plan.trains && d.target_mode === "by_day" && (
+                    <div className="glass" style={{ padding: "var(--sp-2) var(--sp-4)" }}>
+                      <Row label="Día de descanso" value={`${fmt(plan.targets.rest)} kcal`} />
+                      {plan.plainDays.length > 0 && <Row label="Día de entreno" value={`${fmt(plan.targets.train)} kcal`} />}
+                      {plan.legDays.length > 0 && <Row label="Día de pierna" value={`${fmt(plan.targets.leg)} kcal`} last />}
+                    </div>
+                  )}
+
+                  <div className="glass" style={{ padding: "var(--sp-2) var(--sp-4)" }}>
+                    <Row label="Metabolismo basal" value={`${fmt(plan.bmr)} kcal`} />
+                    <Row label="Tu día fuera del gym" value={`${fmt(plan.base)} kcal`} />
+                    <Row label="Gasto promedio con entreno" value={`${fmt(plan.avgExp)} kcal`} strong />
+                    {plan.adjustment !== 0 && <Row label={plan.adjustment < 0 ? "Déficit" : "Superávit"} value={`${plan.adjustment < 0 ? "−" : "+"}${fmt(Math.abs(plan.adjustment))} kcal`} />}
+                    <Row label="Proteína diaria" value={`${fmt(plan.protein)} g`} />
+                    <Row label="Cambio estimado" value={plan.weeklyKg === 0 ? "Peso estable" : `${plan.weeklyKg > 0 ? "+" : "−"}${Math.abs(plan.weeklyKg).toLocaleString("es-CO")} kg por semana`} last />
+                  </div>
+
+                  {oldTarget > 0 && (
+                    <p className="caption">
+                      Antes usábamos un solo factor de actividad para todo el día. Ahora separamos tu vida diaria del entrenamiento, que es más preciso y suele dar una meta más ajustada a lo que de verdad gastas.
+                    </p>
+                  )}
+                  {error && <p role="alert" style={{ color: "var(--danger)", fontWeight: 700, fontSize: "var(--t-small)" }}>{error}</p>}
+                </>
+              );
+            })()}
           </motion.section>
         </AnimatePresence>
       </div>
@@ -279,7 +449,7 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
       <div style={styles.bottom}>
         {current === "summary" ? (
           <button className="btn btn-primary btn-block" disabled={saving || !valid} onClick={finish}>
-            {saving ? "Guardando…" : edit ? "Guardar plan" : "Empezar"}
+            {saving ? "Guardando…" : edit ? "Confirmar mi meta" : "Empezar"}
           </button>
         ) : (
           <button className="btn btn-primary btn-block" disabled={!valid} onClick={() => go(1)}>Continuar</button>
@@ -374,6 +544,19 @@ const styles = {
     width: "100%", minWidth: 0, background: "none", border: "none", outline: "none",
     fontSize: 40, fontWeight: 700, letterSpacing: "-0.03em", color: "var(--text)", fontVariantNumeric: "tabular-nums",
   },
+  weekRow: { display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "var(--sp-2)", margin: "var(--sp-3) 0" },
+  dayBtn: {
+    aspectRatio: "1", borderRadius: "50%", display: "grid", placeItems: "center", fontWeight: 700, fontSize: 17,
+    background: "var(--field)", borderWidth: 1, borderStyle: "solid", borderColor: "var(--hairline)", color: "var(--text)",
+  },
+  dayOn: { background: "linear-gradient(180deg, var(--accent), var(--accent-strong))", borderColor: "transparent", color: "var(--on-accent)" },
+  legOn: { background: "linear-gradient(180deg, #3ddc84, #1b8a4c)", borderColor: "transparent", color: "#ffffff" },
+  dayOff: { opacity: 0.35 },
+  chip: {
+    display: "flex", flexDirection: "column", alignItems: "center", padding: "12px 0", borderRadius: "var(--r-md)",
+    background: "var(--field)", borderWidth: 1, borderStyle: "solid", borderColor: "var(--hairline)", color: "var(--text)",
+  },
+  chipOn: { background: "linear-gradient(180deg, var(--accent), var(--accent-strong))", borderColor: "transparent", color: "var(--on-accent)" },
   levels: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "var(--sp-2)" },
   level: {
     position: "relative", display: "flex", flexDirection: "column", alignItems: "center", gap: 2,

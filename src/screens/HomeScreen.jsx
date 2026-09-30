@@ -11,11 +11,14 @@ import { dayKey, totals } from "../lib/food";
 
 const ease = [0.16, 1, 0.3, 1];
 
-export default function HomeScreen({ profile, ch, onEditPlan, onOpenChallenges }) {
-  const { entries } = useFood(profile, dayKey(new Date(), profile.timezone));
-  const eaten = totals(entries).kcal;
-  const mood = dayMood({ eaten, target: profile.target_kcal || 0, entries: entries.length });
-  const target = profile.target_kcal || 0;
+export default function HomeScreen({ profile, ch, dt, onEditPlan, onOpenChallenges }) {
+  const today = dayKey(new Date(), profile.timezone);
+  const { entries } = useFood(profile, today);
+  const t = totals(entries);
+  const eaten = t.kcal;
+  const { type, target: dayGoal } = dt.info(today);
+  const mood = dayMood({ eaten, target: dayGoal || 0, entries: entries.length });
+  const target = dayGoal || 0;
   const left = target - eaten;
   const pct = target ? Math.min(eaten / target, 1) : 0;
   const over = eaten > target * 1.1;
@@ -38,7 +41,20 @@ export default function HomeScreen({ profile, ch, onEditPlan, onOpenChallenges }
         </div>
       </section>
 
-      <Buddy profile={profile} mood={mood} eaten={eaten} />
+      {(profile.plan_version || 1) < 2 && (
+        <section className="glass" style={{ padding: "var(--sp-4) var(--sp-5)", display: "flex", flexDirection: "column", gap: "var(--sp-2)",
+          borderColor: "color-mix(in srgb, var(--accent) 50%, transparent)" }}>
+          <p style={{ fontWeight: 700 }}>Mejoramos cómo calculamos tu meta</p>
+          <p className="muted" style={{ fontSize: "var(--t-small)" }}>
+            Ahora tiene en cuenta tus días de entreno y de pierna. Te mostramos cómo cambia antes de aplicarla.
+          </p>
+          <button className="btn btn-primary" onClick={onEditPlan}>Actualizar mi plan</button>
+        </section>
+      )}
+
+      <Buddy profile={profile} mood={mood} eaten={eaten} target={dayGoal} />
+
+      {type && <DayTypePicker profile={profile} dt={dt} today={today} />}
 
       {ch && <ChallengeTeaser ch={ch} me={profile.id} onOpen={onOpenChallenges} />}
 
@@ -49,9 +65,9 @@ export default function HomeScreen({ profile, ch, onEditPlan, onOpenChallenges }
             {ch?.planLocked ? <Lock size={16} strokeWidth={1.8} /> : <SlidersHorizontal size={16} strokeWidth={1.8} />} Ajustar
           </button>
         </div>
-        <Row label="Gasto total diario" value={`${fmt(profile.tdee)} kcal`} />
-        <Row label={profile.deficit > 0 ? "Déficit en comida" : "Objetivo"}
-          value={profile.deficit > 0 ? `−${fmt(profile.deficit)} kcal` : "Mantener"} />
+        <Row label="Gasto promedio" value={`${fmt(profile.tdee)} kcal`} />
+        <Row label="Objetivo" value={goalText(profile)} />
+        {profile.protein_g > 0 && <Row label="Proteína diaria" value={`${fmt(profile.protein_g)} g`} />}
         <Row label="Peso de partida" value={`${Number(profile.weight_kg).toLocaleString("es-CO")} kg`} last />
       </section>
 
@@ -60,10 +76,10 @@ export default function HomeScreen({ profile, ch, onEditPlan, onOpenChallenges }
 }
 
 // Tu personaje: cambia de ánimo según tu día. Al tocarlo salta y dice otra cosa.
-function Buddy({ profile, mood, eaten }) {
+function Buddy({ profile, mood, eaten, target }) {
   const [seed, setSeed] = useState(() => Math.floor(Math.random() * 3));
   const first = (profile.name || "").split(" ")[0];
-  const text = dayPhrase({ mood, eaten, target: profile.target_kcal || 0, name: first, seed });
+  const text = dayPhrase({ mood, eaten, target: target || 0, name: first, seed });
   return (
     <section className="glass" style={{ padding: "var(--sp-4)", display: "flex", alignItems: "center", gap: "var(--sp-3)" }}>
       <motion.button key={`${mood}-${seed}`} onClick={() => setSeed((x) => x + 1)} aria-label="Tu personaje"
@@ -80,6 +96,48 @@ function Buddy({ profile, mood, eaten }) {
           <p style={{ fontWeight: 700, fontSize: "var(--t-small)", lineHeight: 1.35 }}>{text}</p>
         </motion.div>
       </AnimatePresence>
+    </section>
+  );
+}
+
+const GOAL_TEXT = { lose: "Bajar peso", recomp: "Recomposición", maintain: "Mantener", gain_clean: "Ganar peso limpio", gain_fast: "Ganar peso más rápido" };
+const goalText = (p) => GOAL_TEXT[p.goal] || (p.deficit > 0 ? `Bajar peso (−${fmt(p.deficit)} kcal)` : "Mantener");
+
+// Tipo de día de hoy: descanso, entreno o pierna. Cambia la meta del día al instante.
+function DayTypePicker({ profile, dt, today }) {
+  const [error, setError] = useState("");
+  const { type, target } = dt.info(today);
+  const options = [{ id: "rest", label: "Descanso" }, { id: "train", label: profile.train_type === "cardio" ? "Cardio" : "Entreno" },
+    ...(profile.train_type !== "cardio" && (profile.train_days || []).length ? [{ id: "leg", label: "Pierna" }] : [])];
+  const pick = async (id) => {
+    setError("");
+    try { await dt.setType(today, id); } catch (e) { setError(e.message); }
+  };
+  return (
+    <section className="glass" style={{ padding: "var(--sp-4) var(--sp-5)", display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+        <p className="eyebrow">Hoy es día de</p>
+        <motion.span key={target} className="num caption" initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ fontWeight: 700 }}>
+          Meta {fmt(target)} kcal
+        </motion.span>
+      </div>
+      <div style={{ display: "flex", gap: 4, padding: 4, borderRadius: "var(--r-pill)", background: "var(--field)", border: "1px solid var(--hairline)" }}>
+        {options.map((o) => {
+          const active = o.id === type;
+          return (
+            <button key={o.id} onClick={() => pick(o.id)} aria-pressed={active}
+              style={{ position: "relative", flex: 1, minHeight: 42, borderRadius: "var(--r-pill)", fontWeight: 700, fontSize: "var(--t-small)" }}>
+              {active && (
+                <motion.span layoutId="daytype-pill" transition={{ type: "spring", stiffness: 420, damping: 34 }}
+                  style={{ position: "absolute", inset: 0, borderRadius: "var(--r-pill)",
+                    background: o.id === "leg" ? "linear-gradient(180deg, #3ddc84, #1b8a4c)" : "linear-gradient(180deg, var(--accent), var(--accent-strong))" }} />
+              )}
+              <span style={{ position: "relative", color: active ? (o.id === "leg" ? "#fff" : "var(--on-accent)") : "var(--text)" }}>{o.label}</span>
+            </button>
+          );
+        })}
+      </div>
+      {error && <p role="alert" style={{ color: "var(--danger)", fontWeight: 700, fontSize: "var(--t-small)" }}>{error}</p>}
     </section>
   );
 }

@@ -73,7 +73,9 @@ async function buildMessage(kind: string, p: Record<string, any>, day: string) {
     if (!data?.length) {
       return { title: "Tu día está en blanco", body: `${first}, registra lo que comiste hoy para no romper tu racha.`, url: "/?tab=food" };
     }
-    const target = p.target_kcal || 0;
+    // Meta del día (según descanso, entreno o pierna); las cuentas con plan anterior tienen una sola.
+    const { data: dayGoal } = await supabase.rpc("day_target", { uid: p.id, d: day });
+    const target = dayGoal || p.target_kcal || 0;
     const inRange = target && eaten >= target * 0.9 && eaten <= target * 1.1;
     return {
       title: inRange ? "Día cumplido" : "Resumen del día",

@@ -175,8 +175,8 @@ function ChallengeCard({ c, me, ch, today, onOpenPerson }) {
             </div>
             {p.today !== null && (
               <p className="caption">
-                Hoy: <span className="num" style={{ fontWeight: 700, color: "var(--text)" }}>{fmt(p.today)}</span> de {fmt(p.target_kcal)} kcal
-                {inRange(p.today, p.target_kcal) && <span style={styles.ok}> · en rango</span>}
+                Hoy: <span className="num" style={{ fontWeight: 700, color: "var(--text)" }}>{fmt(p.today)}</span> de {fmt(p.today_target || p.target_kcal)} kcal
+                {inRange(p.today, p.today_target || p.target_kcal) && <span style={styles.ok}> · en rango</span>}
               </p>
             )}
           </div>
@@ -243,7 +243,7 @@ function GroupBoard({ players, lead, started, me, goal, onOpenPerson }) {
               </div>
               {p.today !== null && (
                 <span className="caption">
-                  Hoy {fmt(p.today)} de {fmt(p.target_kcal)}{inRange(p.today, p.target_kcal) && <span style={styles.ok}> · en rango</span>}
+                  Hoy {fmt(p.today)} de {fmt(p.today_target || p.target_kcal)}{inRange(p.today, p.today_target || p.target_kcal) && <span style={styles.ok}> · en rango</span>}
                 </span>
               )}
             </div>

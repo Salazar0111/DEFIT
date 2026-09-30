@@ -17,6 +17,7 @@ import Tour from "./components/Tour";
 import TabTip from "./components/TabTip";
 import Medal from "./components/Medal";
 import { useChallenges } from "./lib/useChallenges";
+import { useDayTypes } from "./lib/useDayTypes";
 import { medalById } from "./lib/medals";
 import { avatarSrc } from "./lib/avatars";
 import { challengeTitle } from "./screens/ChallengesScreen";
@@ -30,7 +31,10 @@ const DEMO_PROFILE = params.get("demo") === "nuevo"
   : {
       id: "demo", name: "Brayan", avatar: "a3", palette: "noche-azul", onboarded: true,
       sex: "m", birthdate: "1995-05-10", height_cm: 178, weight_kg: 92, frame: "medium",
-      activity: "moderate", deficit: 800, bmr: 1883, tdee: 2919, target_kcal: 2119,
+      activity: null, deficit: 600, bmr: 1883, tdee: 2431, target_kcal: 1831, protein_g: 184, plan_version: 2,
+      lifestyle: "seated", trains: true, train_type: "weights", train_days: [1, 2, 4, 5], leg_days: [2, 5],
+      session_min: 60, intensity: "moderate", goal: "lose", target_mode: "by_day",
+      targets: { rest: 1660, train: 1890, leg: 2028 },
       // ?demo&tour muestra el tutorial; ?demo&tips, las burbujas por pestaña.
       tips_seen: params.has("tour") ? [] : params.has("tips") ? ["tour"] : ["tour", "home", "food", "weight", "challenges", "profile"],
     };
@@ -93,6 +97,7 @@ export default function App() {
 // App con sesión y plan listo. Aquí vive el estado de retos (en tiempo real) que comparten las pantallas.
 function Main({ profile, tab, setTab, patchProfile, onEditPlan }) {
   const ch = useChallenges(profile);
+  const dt = useDayTypes(profile);
   // Tutoriales vistos (guardados en el perfil para no repetirse en otros dispositivos).
   const seen = (key) => (profile.tips_seen || []).includes(key);
   const markSeen = async (key) => {
@@ -144,8 +149,8 @@ function Main({ profile, tab, setTab, patchProfile, onEditPlan }) {
   };
 
   const screens = {
-    home: <HomeScreen profile={profile} ch={ch} onEditPlan={editPlan} onOpenChallenges={() => setTab("challenges")} />,
-    food: <FoodScreen profile={profile} />,
+    home: <HomeScreen profile={profile} ch={ch} dt={dt} onEditPlan={editPlan} onOpenChallenges={() => setTab("challenges")} />,
+    food: <FoodScreen profile={profile} dt={dt} />,
     weight: <WeightScreen profile={profile} onEditPlan={editPlan} />,
     challenges: <ChallengesScreen profile={profile} ch={ch} />,
     profile: <ProfileScreen profile={profile} ch={ch} onChange={patchProfile} onEditPlan={editPlan} planLocked={ch.planLocked} onReplayTour={replayTour} />,

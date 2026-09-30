@@ -12,7 +12,7 @@ import { foodReaction } from "../lib/buddy";
 
 const ease = [0.16, 1, 0.3, 1];
 
-export default function FoodScreen({ profile }) {
+export default function FoodScreen({ profile, dt }) {
   const today = dayKey(new Date(), profile.timezone);
   const [day, setDay] = useState(today);
   const [adding, setAdding] = useState(false);
@@ -20,7 +20,8 @@ export default function FoodScreen({ profile }) {
   const [editing, setEditing] = useState(null);
   const { entries, loading, add, update, remove } = useFood(profile, day);
   const t = totals(entries);
-  const target = profile.target_kcal || 0;
+  const dayInfo = dt.info(day);
+  const target = dayInfo.target || 0;
   const pct = target ? Math.min(t.kcal / target, 1) : 0;
   const inRange = target && t.kcal >= target * 0.9 && t.kcal <= target * 1.1;
   const over = target && t.kcal > target * 1.1;
@@ -62,7 +63,7 @@ export default function FoodScreen({ profile }) {
           <span style={{ ...styles.tick, left: "90%" }} />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "var(--sp-2)" }}>
-          <Macro label="Proteína" g={t.protein_g} />
+          <Macro label="Proteína" g={t.protein_g} goal={profile.protein_g} />
           <Macro label="Carbos" g={t.carbs_g} />
           <Macro label="Grasa" g={t.fat_g} />
         </div>
@@ -155,11 +156,11 @@ export default function FoodScreen({ profile }) {
   );
 }
 
-function Macro({ label, g }) {
+function Macro({ label, g, goal }) {
   return (
     <div style={{ padding: "10px 12px", borderRadius: "var(--r-sm)", background: "var(--field)", border: "1px solid var(--hairline)" }}>
       <p className="caption">{label}</p>
-      <p className="num" style={{ fontWeight: 700 }}>{Math.round(g)} g</p>
+      <p className="num" style={{ fontWeight: 700 }}>{Math.round(g)}{goal ? <span className="caption"> / {goal}</span> : ""} g</p>
     </div>
   );
 }

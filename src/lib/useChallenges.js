@@ -10,7 +10,8 @@ function deviation(totals, target, from, to) {
   let sum = 0, n = 0;
   for (let d = from; d <= to; d = shiftDay(d, 1)) {
     const t = totals.find((x) => x.day === d);
-    sum += t ? Math.abs(t.kcal - target) / target : 1;
+    const goal = t?.target_kcal || target; // la meta de ese día (si falta, la del miembro)
+    sum += t ? Math.abs(t.kcal - goal) / goal : 1;
     n++;
   }
   return n ? sum / n : null;
@@ -49,10 +50,11 @@ function withProgress(ch, totals, today) {
     const mine = totals.filter((t) => t.user_id === m.user_id);
     const done = ch.status === "finished"
       ? m.days_done
-      : mine.filter((t) => t.day >= ch.start_day && t.day <= last && inRange(t.kcal, m.target_kcal)).length;
+      : mine.filter((t) => t.day >= ch.start_day && t.day <= last && inRange(t.kcal, t.target_kcal || m.target_kcal)).length;
     const running = ch.status === "active" && today >= ch.start_day && today <= ch.end_day;
     const dev = ch.status === "finished" ? (m.deviation != null ? Number(m.deviation) : null) : deviation(mine, m.target_kcal, ch.start_day, last);
-    return { ...m, done, dev, today: running ? (mine.find((t) => t.day === today)?.kcal || 0) : null };
+    const todayRow = mine.find((t) => t.day === today);
+    return { ...m, done, dev, today: running ? (todayRow?.kcal || 0) : null, today_target: todayRow?.target_kcal || m.target_kcal };
   });
   return { ...ch, members };
 }
@@ -80,7 +82,7 @@ export function useChallenges(profile) {
       challenges = data || [];
       const userIds = [...new Set(challenges.flatMap((c) => c.members.map((m) => m.user_id)))];
       const from = challenges.map((c) => c.start_day).filter(Boolean).sort()[0] || today;
-      const { data: totals } = await supabase.from("daily_totals").select("user_id, day, kcal")
+      const { data: totals } = await supabase.from("daily_totals").select("user_id, day, kcal, target_kcal")
         .in("user_id", userIds).gte("day", from).lte("day", today);
       challenges = challenges.map((c) => withProgress(c, totals || [], today));
     }
