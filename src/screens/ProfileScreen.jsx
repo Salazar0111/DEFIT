@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { motion } from "motion/react";
-import { Check, LogOut, SlidersHorizontal } from "lucide-react";
+import { Check, Lock, LogOut, SlidersHorizontal } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { AVATARS, avatarSrc } from "../lib/avatars";
 import { PALETTES } from "../lib/palettes";
 import Reminders from "../components/Reminders";
 
-export default function ProfileScreen({ profile, onChange, onEditPlan }) {
+export default function ProfileScreen({ profile, onChange, onEditPlan, planLocked }) {
   const [saving, setSaving] = useState(false);
 
   const save = async (patch) => {
@@ -80,7 +80,9 @@ export default function ProfileScreen({ profile, onChange, onEditPlan }) {
       <Reminders profile={profile} onChange={onChange} />
 
       <button className="btn btn-glass btn-block" onClick={onEditPlan}>
-        <SlidersHorizontal size={18} strokeWidth={1.8} /> Ajustar mi plan
+        {planLocked
+          ? <><Lock size={18} strokeWidth={1.8} /> Plan fijo durante el reto</>
+          : <><SlidersHorizontal size={18} strokeWidth={1.8} /> Ajustar mi plan</>}
       </button>
 
       <button className="btn btn-glass btn-block" onClick={() => supabase.auth.signOut()}>

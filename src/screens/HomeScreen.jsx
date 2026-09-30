@@ -1,12 +1,14 @@
 import { motion } from "motion/react";
-import { SlidersHorizontal } from "lucide-react";
+import { ChevronRight, Lock, SlidersHorizontal, Swords } from "lucide-react";
+import { avatarSrc } from "../lib/avatars";
+import { challengeTitle } from "./ChallengesScreen";
 import { fmt } from "../lib/plan";
 import { useFood } from "../lib/useFood";
 import { dayKey, totals } from "../lib/food";
 
 const ease = [0.16, 1, 0.3, 1];
 
-export default function HomeScreen({ profile, onEditPlan }) {
+export default function HomeScreen({ profile, ch, onEditPlan, onOpenChallenges }) {
   const { entries } = useFood(profile, dayKey(new Date(), profile.timezone));
   const eaten = totals(entries).kcal;
   const target = profile.target_kcal || 0;
@@ -32,11 +34,13 @@ export default function HomeScreen({ profile, onEditPlan }) {
         </div>
       </section>
 
+      {ch && <ChallengeTeaser ch={ch} me={profile.id} onOpen={onOpenChallenges} />}
+
       <section className="glass" style={{ padding: "var(--sp-4) var(--sp-5)" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--sp-2)" }}>
           <h2>Tu plan</h2>
           <button className="btn btn-glass" style={{ minHeight: 40, padding: "0 16px", fontSize: "var(--t-small)" }} onClick={onEditPlan}>
-            <SlidersHorizontal size={16} strokeWidth={1.8} /> Ajustar
+            {ch?.planLocked ? <Lock size={16} strokeWidth={1.8} /> : <SlidersHorizontal size={16} strokeWidth={1.8} />} Ajustar
           </button>
         </div>
         <Row label="Gasto total diario" value={`${fmt(profile.tdee)} kcal`} />
@@ -46,6 +50,36 @@ export default function HomeScreen({ profile, onEditPlan }) {
       </section>
 
     </div>
+  );
+}
+
+// Resumen del reto activo o de una invitación pendiente.
+function ChallengeTeaser({ ch, me, onOpen }) {
+  const invite = ch.challenges.find((c) => c.status === "pending" && c.members.some((m) => m.user_id === me && m.status === "invited"));
+  const active = ch.challenges.find((c) => c.status === "active");
+  const c = invite || active;
+  if (!c) return null;
+  const players = c.members.filter((m) => m.status === "accepted" || m.user_id === me);
+  return (
+    <motion.button className="glass" onClick={onOpen} whileTap={{ scale: 0.98 }}
+      initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease }}
+      style={{ padding: "var(--sp-4) var(--sp-5)", display: "flex", alignItems: "center", gap: "var(--sp-3)", textAlign: "left", color: "var(--text)",
+        ...(invite && { borderColor: "color-mix(in srgb, var(--accent) 50%, transparent)" }) }}>
+      <div style={{ display: "flex" }}>
+        {players.slice(0, 3).map((m, i) => (
+          <img key={m.user_id} src={avatarSrc(m.profile?.avatar)} alt=""
+            style={{ width: 40, height: 40, borderRadius: "50%", marginLeft: i ? -12 : 0, boxShadow: "0 0 0 2px var(--bg)" }} />
+        ))}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p className="eyebrow" style={{ display: "flex", alignItems: "center", gap: 6 }}><Swords size={13} strokeWidth={2} />{invite ? "Te retaron" : "Reto en curso"}</p>
+        <p style={{ fontWeight: 700 }}>{challengeTitle(c)}</p>
+        {!invite && (
+          <p className="caption num">{players.map((m) => `${m.user_id === me ? "Tú" : m.profile?.name} ${m.done}`).join(" · ")} días</p>
+        )}
+      </div>
+      <ChevronRight size={20} strokeWidth={1.8} style={{ color: "var(--text-2)" }} />
+    </motion.button>
   );
 }
 

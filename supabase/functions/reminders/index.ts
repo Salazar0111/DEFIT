@@ -123,7 +123,18 @@ Deno.serve(async (req) => {
 
   const auth = req.headers.get("Authorization")?.replace(/^Bearer\s+/i, "") || "";
 
-  if (auth && auth === Deno.env.get("CRON_SECRET")) return json(await runCron());
+  if (auth && auth === Deno.env.get("CRON_SECRET")) {
+    const body = await req.json().catch(() => ({}));
+    // Eventos de retos (invitación, aceptación, resultado) enviados desde la base de datos.
+    if (body.event && Array.isArray(body.user_ids) && body.user_ids.length) {
+      const { data: subs } = await supabase.from("push_subscriptions").select("endpoint, p256dh, auth").in("user_id", body.user_ids);
+      const sent = await sendTo(subs || [], {
+        title: String(body.title || "DEFIT"), body: String(body.body || ""), url: String(body.url || "/"), tag: "challenge",
+      });
+      return json({ sent });
+    }
+    return json(await runCron());
+  }
 
   // Notificación de prueba para el usuario con sesión.
   const { data: { user } } = await supabase.auth.getUser(auth);
