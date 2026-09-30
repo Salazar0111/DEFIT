@@ -59,7 +59,6 @@ export default function ProfileScreen({ profile, ch, onChange, onEditPlan, planL
             );
           })}
         </div>
-        <p className="caption">Avatares provisionales. Los finales llegan con tu diseño.</p>
       </section>
 
       <section className="glass" style={styles.section}>
