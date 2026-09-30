@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
-import { Check, Dumbbell, Play, RefreshCw, Shuffle, Moon } from "lucide-react";
+import { Check, ChevronRight, Dumbbell, Play, RefreshCw, Shuffle, Moon, TrendingUp } from "lucide-react";
+import { useEffect } from "react";
+import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { avatarSrc } from "../lib/avatars";
 import Sheet from "../components/Sheet";
 import WorkoutSession from "../components/WorkoutSession";
 import { WEEKDAYS } from "../lib/plan";
@@ -17,6 +20,12 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan }) {
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
   const [last, setLast] = useState({});
+  const [best, setBest] = useState({});
+  const [newRecords, setNewRecords] = useState(null);
+  const [marks, setMarks] = useState([]);
+  const [detail, setDetail] = useState(null);
+
+  useEffect(() => { wk.myExercises().then(setMarks).catch(() => {}); }, [wk.logs.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { routine, today } = wk;
   const days = profile.train_days || [];
@@ -57,18 +66,18 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan }) {
   }
 
   const start = async (s) => {
-    setLast(await wk.lastSets(s.exercises.map((e) => e.id)).catch(() => ({})));
+    const r = await wk.lastSets(s.exercises.map((e) => e.id)).catch(() => ({ last: {}, best: {} }));
+    setLast(r.last); setBest(r.best);
     setSession(s);
   };
-  const finishSession = async ({ sets, durationS }) => {
+  const finishSession = async ({ sets, durationS, records }) => {
     setError("");
     try {
       await wk.finish({ name: session.name, leg: !!session.leg, durationS, sets });
       // El día queda como entreno o pierna, y su meta se ajusta sola.
       await dt.setType(today, session.leg ? "leg" : "train").catch(() => {});
       setSession(null);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 4000);
+      if (records?.length) setNewRecords(records); else { setSaved(true); setTimeout(() => setSaved(false), 4000); }
     } catch (e) { setError(e.message); }
   };
 
@@ -141,6 +150,20 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan }) {
         </button>
       </div>
       {error && <p role="alert" style={{ color: "var(--danger)", fontWeight: 700, fontSize: "var(--t-small)" }}>{error}</p>}
+      {marks.length > 0 && (
+        <section className="glass" style={{ padding: "var(--sp-2) var(--sp-4)" }}>
+          <p className="eyebrow" style={{ padding: "10px 0 6px" }}>Tus marcas</p>
+          {marks.slice(0, 6).map((m) => (
+            <button key={m.id} onClick={() => wk.progress(m.id).then((p) => setDetail({ id: m.id, points: p }))}
+              style={{ display: "flex", alignItems: "center", gap: "var(--sp-3)", width: "100%", padding: "12px 0", borderTop: "1px solid var(--hairline)", color: "var(--text)", textAlign: "left" }}>
+              <span style={{ flex: 1, fontWeight: 700 }}>{exerciseById(m.id)?.name || m.id}</span>
+              <span className="num" style={{ fontWeight: 700 }}>{m.kg.toLocaleString("es-CO")} kg × {m.reps}</span>
+              <ChevronRight size={18} strokeWidth={1.8} style={{ color: "var(--text-2)" }} />
+            </button>
+          ))}
+        </section>
+      )}
+
       <button className="btn btn-text" style={{ alignSelf: "center", fontSize: "var(--t-small)", color: "var(--text-2)" }} onClick={() => setChanging(true)}>
         <RefreshCw size={15} strokeWidth={2} /> Cambiar rutina
       </button>
@@ -168,9 +191,30 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan }) {
               ))}
             </div>
           </Sheet>
+          <Sheet open={!!newRecords} onClose={() => { setNewRecords(null); setSaved(true); setTimeout(() => setSaved(false), 4000); }} title="Nuevo récord">
+            {newRecords && (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "var(--sp-3)", textAlign: "center", paddingBottom: "var(--sp-4)" }}>
+                <motion.img src={avatarSrc(profile.avatar, "party")} alt="" initial={{ scale: 0.4, rotate: -20 }} animate={{ scale: 1, rotate: 0, y: [0, -20, 0] }}
+                  transition={{ type: "spring", stiffness: 200, damping: 10 }} style={{ width: 120, height: 120, borderRadius: "50%" }} />
+                <h1>{newRecords.length > 1 ? `${newRecords.length} récords hoy` : "Rompiste tu marca"}</h1>
+                <div style={{ width: "100%" }}>
+                  {newRecords.map((r) => (
+                    <div key={r.name} style={{ display: "flex", justifyContent: "space-between", padding: "12px 0", borderTop: "1px solid var(--hairline)" }}>
+                      <span style={{ fontWeight: 700 }}>{r.name}</span>
+                      <span className="num" style={{ fontWeight: 700 }}>{r.kg.toLocaleString("es-CO")} kg × {r.reps}</span>
+                    </div>
+                  ))}
+                </div>
+                <button className="btn btn-primary btn-block" onClick={() => { setNewRecords(null); setSaved(true); setTimeout(() => setSaved(false), 4000); }}>Genial</button>
+              </div>
+            )}
+          </Sheet>
+          <Sheet open={!!detail} onClose={() => setDetail(null)} title={detail ? exerciseById(detail.id)?.name : ""}>
+            {detail && <ProgressDetail points={detail.points} />}
+          </Sheet>
           <AnimatePresence>
             {session && (
-              <WorkoutSession key="session" session={session} lastSets={last} onCancel={() => setSession(null)} onFinish={finishSession} />
+              <WorkoutSession key="session" session={session} lastSets={last} best={best} onCancel={() => setSession(null)} onFinish={finishSession} />
             )}
           </AnimatePresence>
         </>,
@@ -180,7 +224,44 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan }) {
   );
 }
 
+function ProgressDetail({ points }) {
+  const first = points[0], last = points[points.length - 1];
+  const gain = first && last ? Math.round((last.e1rm - first.e1rm) * 10) / 10 : 0;
+  const bestP = points.reduce((b, p) => (p.e1rm > (b?.e1rm ?? 0) ? p : b), null);
+  const data = points.map((p) => ({ day: p.day, v: p.e1rm }));
+  const vs = data.map((d) => d.v);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-4)", paddingBottom: "var(--sp-4)" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--sp-2)" }}>
+        <div style={styles.stat}><p className="caption">Mejor marca</p><p className="num" style={{ fontWeight: 700, fontSize: 22 }}>{bestP ? `${bestP.kg.toLocaleString("es-CO")} × ${bestP.reps}` : "–"}</p></div>
+        <div style={styles.stat}><p className="caption">Desde que empezaste</p><p className="num" style={{ fontWeight: 700, fontSize: 22, color: gain > 0 ? "var(--accent)" : undefined }}>{gain > 0 ? "+" : ""}{gain.toLocaleString("es-CO")} kg</p></div>
+      </div>
+      {data.length > 1 ? (
+        <div style={{ height: 170, margin: "0 -8px" }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
+              <defs>
+                <linearGradient id="pr-fill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" style={{ stopColor: "var(--accent)", stopOpacity: 0.35 }} />
+                  <stop offset="1" style={{ stopColor: "var(--accent)", stopOpacity: 0 }} />
+                </linearGradient>
+              </defs>
+              <XAxis dataKey="day" hide />
+              <YAxis hide domain={[Math.min(...vs) - 3, Math.max(...vs) + 3]} />
+              <Tooltip cursor={{ stroke: "var(--hairline)" }} formatter={(v) => [`${v} kg`, "Fuerza estimada"]} labelFormatter={(d) => d} />
+              <Area type="monotone" dataKey="v" stroke="var(--accent)" strokeWidth={2.5} fill="url(#pr-fill)" dot={false} animationDuration={900}
+                activeDot={{ r: 5, fill: "var(--accent)", stroke: "var(--bg)", strokeWidth: 2 }} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      ) : <p className="muted">Con una sesión más ya verás tu gráfica.</p>}
+      <p className="caption">La fuerza estimada es el peso que levantarías a 1 repetición (fórmula de Epley), calculada con tus series de 1 a 10 repeticiones.</p>
+    </div>
+  );
+}
+
 const styles = {
+  stat: { padding: "14px", borderRadius: "var(--r-md)", background: "var(--field)", border: "1px solid var(--hairline)" },
   card: { padding: "var(--sp-5)", display: "flex", flexDirection: "column", gap: "var(--sp-3)", borderRadius: "var(--r-lg)" },
   icon: { width: 52, height: 52, borderRadius: 16, display: "grid", placeItems: "center", color: "var(--accent)", background: "color-mix(in srgb, var(--accent) 14%, transparent)" },
   week: { display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 },

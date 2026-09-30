@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
-import { Crown, Plus, Swords, Check, X, Lock, HandHeart, Zap, Flag, Trophy, Handshake, Medal as MedalIcon, CircleX, FlagOff, Ban } from "lucide-react";
+import { Dumbbell, Crown, Plus, Swords, Check, X, Lock, HandHeart, Zap, Flag, Trophy, Handshake, Medal as MedalIcon, CircleX, FlagOff, Ban } from "lucide-react";
 import { PersonSheetContent } from "../components/PersonCard";
 import Sheet from "../components/Sheet";
 import Medal from "../components/Medal";
@@ -493,6 +493,7 @@ function describe(a, me, nameOf) {
     case "challenge_draw": return { Icon: Flag, text: <>{mine ? <>Empataste con {them}</> : <>{who} y {them} empataron</>} el reto</> };
     case "challenge_forfeit": return { Icon: FlagOff, text: <>{lead(v("Te rendiste", "Se rindió"))} en el reto con {them}</> };
     case "challenge_cancelled": return { Icon: Ban, text: <>{mine ? <>Tú y {them}</> : <>{who} y {them}</>} cancelaron el reto</> };
+    case "pr": return { Icon: Dumbbell, text: <>{lead(v("Rompiste", "Rompió"))} su récord en <b>{a.data?.exercise}</b>: {Number(a.data?.kg).toLocaleString("es-CO")} kg × {a.data?.reps}</> };
     case "medal": return { Icon: MedalIcon, medal: medalById(a.data?.medal), text: <>{lead(v("Ganaste", "Ganó"))} la medalla <b>{medalById(a.data?.medal)?.name || ""}</b></> };
     case "poke": return a.data?.kind === "cheer"
       ? { Icon: HandHeart, text: <>{lead(v("Le mandaste", "Le mandó"))} ánimo a {them}</> }

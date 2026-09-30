@@ -1,4 +1,4 @@
-import { CalendarCheck, Crown, Flag, Flame, Sparkles, Star, Target, Trophy, Zap } from "lucide-react";
+import { CalendarCheck, Crown, Dumbbell, Flag, Flame, Rocket, Sparkles, Star, Target, TrendingUp, Trophy, Zap } from "lucide-react";
 
 // Medallas provisionales. Para reemplazar el arte, pon un SVG en /public/medals/<id>.svg
 // y marca art: true; el componente Medal lo usará en lugar del placeholder.
@@ -10,6 +10,11 @@ export const MEDALS = [
   { id: "streak_100", name: "Racha de 100", desc: "100 días seguidos registrando.", Icon: Crown, metal: "gold", enamel: ["#fde68a", "#b45309"], group: "daily" },
   { id: "week_logged", name: "Semana registrada", desc: "Registraste los 7 días de la semana.", Icon: CalendarCheck, metal: "silver", enamel: ["#c4b5fd", "#6d28d9"], group: "weekly" },
   { id: "perfect_week", name: "Semana perfecta", desc: "Cumpliste tu meta los 7 días de la semana.", Icon: Star, metal: "gold", enamel: ["#f9a8d4", "#be185d"], group: "weekly" },
+  { id: "pr_first", name: "Primer récord", desc: "Superaste tu mejor marca en un ejercicio.", Icon: TrendingUp, metal: "bronze", enamel: ["#86efac", "#166534"], group: "strength" },
+  { id: "pr_10", name: "10 récords", desc: "Rompiste 10 marcas personales.", Icon: Dumbbell, metal: "silver", enamel: ["#a5b4fc", "#3730a3"], group: "strength" },
+  { id: "pr_50", name: "50 récords", desc: "Rompiste 50 marcas personales.", Icon: Crown, metal: "gold", enamel: ["#fde68a", "#92400e"], group: "strength" },
+  { id: "stronger", name: "Más fuerte", desc: "Subiste 10% tu fuerza en un ejercicio desde tu primera sesión.", Icon: Rocket, metal: "gold", enamel: ["#fda4af", "#9f1239"], group: "strength" },
+  { id: "week_trained", name: "Semana de entreno", desc: "Cumpliste todos tus días de entreno de la semana.", Icon: CalendarCheck, metal: "silver", enamel: ["#67e8f9", "#155e75"], group: "weekly" },
   { id: "challenge_done", name: "Reto completado", desc: "Terminaste un reto.", Icon: Flag, metal: "silver", enamel: ["#93c5fd", "#1d4ed8"], group: "challenge" },
   { id: "challenge_won", name: "Reto ganado", desc: "Ganaste un reto.", Icon: Trophy, metal: "gold", enamel: ["#fcd34d", "#a16207"], group: "challenge" },
 ];
@@ -17,6 +22,7 @@ export const MEDALS = [
 export const MEDAL_GROUPS = [
   { id: "daily", label: "Diarias" },
   { id: "weekly", label: "Semanales" },
+  { id: "strength", label: "Fuerza" },
   { id: "challenge", label: "Retos" },
 ];
 

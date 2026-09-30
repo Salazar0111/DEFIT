@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Check, ChevronLeft, ChevronRight, Minus, Plus, X } from "lucide-react";
-import { exerciseById } from "../lib/exercises";
+import { Check, ChevronLeft, ChevronRight, Minus, Plus, TrendingUp, X } from "lucide-react";
+import { e1rm, exerciseById } from "../lib/exercises";
 
 const REST_S = 90;
 const ease = [0.16, 1, 0.3, 1];
@@ -9,7 +9,7 @@ const kgFmt = (n) => Number(n).toLocaleString("es-CO", { maximumFractionDigits: 
 const clock = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
 // Pantalla de gym: un ejercicio a la vez, botones grandes, el peso de la última vez ya cargado.
-export default function WorkoutSession({ session, lastSets, onFinish, onCancel }) {
+export default function WorkoutSession({ session, lastSets, best = {}, onFinish, onCancel }) {
   const exercises = session.exercises.map((e) => ({ ...e, info: exerciseById(e.id) })).filter((e) => e.info);
   const [idx, setIdx] = useState(0);
   const [done, setDone] = useState([]); // series hechas: { exercise_id, exercise_name, set_no, kg, reps }
@@ -20,6 +20,9 @@ export default function WorkoutSession({ session, lastSets, onFinish, onCancel }
   const [elapsed, setElapsed] = useState(0);
   const [confirmEnd, setConfirmEnd] = useState(false);
   const wake = useRef(null);
+  const bests = useRef({ ...best });      // mejores marcas previas; se actualizan al romper un récord
+  const [records, setRecords] = useState({}); // exercise_id -> { name, kg, reps }
+  const [flash, setFlash] = useState(null);   // aviso de récord de la última serie
 
   const ex = exercises[idx];
   const mine = done.filter((s) => s.exercise_id === ex?.id);
@@ -53,6 +56,15 @@ export default function WorkoutSession({ session, lastSets, onFinish, onCancel }
   const doneSet = () => {
     const s = { exercise_id: ex.id, exercise_name: ex.info.name, set_no: setNo, kg, reps };
     setDone((d) => [...d, s]);
+    // Récord: supera tu mejor peso o tu fuerza estimada (solo si ya habías hecho el ejercicio).
+    const b = bests.current[ex.id];
+    const e = reps <= 10 ? e1rm(kg, reps) : 0;
+    if (b && b.kg > 0 && (kg > b.kg || (e > 0 && e > b.e1rm))) {
+      bests.current[ex.id] = { kg: Math.max(b.kg, kg), e1rm: Math.max(b.e1rm, e) };
+      setRecords((r) => ({ ...r, [ex.id]: { name: ex.info.name, kg, reps } }));
+      setFlash({ key: Date.now(), text: `${ex.info.name}: ${kgFmt(kg)} kg × ${reps}` });
+      setTimeout(() => setFlash(null), 2600);
+    }
     if (setNo >= ex.sets) {
       if (idx < exercises.length - 1) { setIdx(idx + 1); setRest(REST_S); } else { setRest(0); setConfirmEnd(true); }
     } else {
@@ -115,6 +127,20 @@ export default function WorkoutSession({ session, lastSets, onFinish, onCancel }
       )}
 
       <AnimatePresence>
+        {flash && (
+          <motion.div key={flash.key} className="glass glass-strong" role="status" style={styles.flash}
+            initial={{ y: -40, opacity: 0, scale: 0.9 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ y: -40, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 380, damping: 18 }}>
+            <span style={styles.flashIcon}><TrendingUp size={20} strokeWidth={2.2} /></span>
+            <div>
+              <p style={{ fontWeight: 700 }}>Nuevo récord</p>
+              <p className="caption">{flash.text}</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
         {rest > 0 && (
           <motion.div className="glass glass-strong" style={styles.rest} initial={{ y: 120, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 120, opacity: 0 }}>
             <div style={{ flex: 1 }}>
@@ -133,16 +159,17 @@ export default function WorkoutSession({ session, lastSets, onFinish, onCancel }
             <motion.div className="glass glass-strong" style={styles.sheet} initial={{ y: 60 }} animate={{ y: 0 }} exit={{ y: 60 }}>
               <h2>{done.length ? "Terminar el entreno" : "Salir sin registrar"}</h2>
               {done.length > 0 ? (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "var(--sp-2)", textAlign: "center" }}>
+                <div style={{ display: "grid", gridTemplateColumns: `repeat(${Object.keys(records).length ? 4 : 3}, 1fr)`, gap: "var(--sp-2)", textAlign: "center" }}>
                   <Stat label="Tiempo" value={clock(elapsed)} />
                   <Stat label="Series" value={done.length} />
                   <Stat label="Volumen" value={`${volume.toLocaleString("es-CO")} kg`} />
+                  {Object.keys(records).length > 0 && <Stat label="Récords" value={Object.keys(records).length} />}
                 </div>
               ) : <p className="muted">No has hecho ninguna serie todavía.</p>}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--sp-2)" }}>
                 <button className="btn btn-glass" onClick={() => setConfirmEnd(false)}>Seguir</button>
                 {done.length > 0
-                  ? <button className="btn btn-primary" onClick={() => onFinish({ sets: done, durationS: elapsed })}>Guardar</button>
+                  ? <button className="btn btn-primary" onClick={() => onFinish({ sets: done, durationS: elapsed, records: Object.values(records) })}>Guardar</button>
                   : <button className="btn btn-primary" onClick={onCancel}>Salir</button>}
               </div>
               {done.length > 0 && <button className="btn btn-text" onClick={onCancel}>Descartar entreno</button>}
@@ -197,6 +224,8 @@ const styles = {
     fontWeight: 700, letterSpacing: "-0.03em", color: "var(--text)", fontVariantNumeric: "tabular-nums",
   },
   doneBtn: { minHeight: 68, fontSize: 20, borderRadius: "var(--r-lg)" },
+  flash: { position: "fixed", zIndex: 86, top: "calc(var(--safe-top) + 12px)", left: 16, right: 16, maxWidth: 448, margin: "0 auto", display: "flex", alignItems: "center", gap: "var(--sp-3)", padding: "12px 16px", borderRadius: "var(--r-lg)" },
+  flashIcon: { width: 40, height: 40, borderRadius: 14, display: "grid", placeItems: "center", color: "#fff", background: "linear-gradient(180deg, #3ddc84, #1b8a4c)", flexShrink: 0 },
   rest: { position: "fixed", zIndex: 85, left: 16, right: 16, bottom: "calc(var(--safe-bottom) + 16px)", maxWidth: 448, margin: "0 auto", display: "flex", alignItems: "center", gap: "var(--sp-2)", padding: "var(--sp-3) var(--sp-4)", borderRadius: "var(--r-lg)" },
   scrim: { position: "fixed", inset: 0, zIndex: 90, background: "rgba(0,0,0,.45)", display: "flex", alignItems: "flex-end", justifyContent: "center" },
   sheet: { width: "100%", maxWidth: 480, padding: "var(--sp-5)", paddingBottom: "calc(var(--safe-bottom) + var(--sp-5))", borderRadius: "var(--r-lg) var(--r-lg) 0 0", display: "flex", flexDirection: "column", gap: "var(--sp-4)" },
