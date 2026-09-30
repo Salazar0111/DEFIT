@@ -1,0 +1,348 @@
+<title>DEFIT Entreno</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Documento técnico sobrio: columna de lectura con tablas de datos; identidad DEFIT (Helvetica, azul). */
+:root {
+  --bg: #f6f7fa;
+  --surface: #ffffff;
+  --fg: #0d1220;
+  --fg-2: #4a5268;
+  --line: #dde1ea;
+  --accent: #2463eb;
+  --accent-soft: #e6edfd;
+  --leg: #0f8a5f;
+  --leg-soft: #e2f4ec;
+  --warn: #a15c00;
+  --warn-soft: #fbf0df;
+  --font: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #070a11; --surface: #0f1420; --fg: #f3f5fa; --fg-2: #aab3c7; --line: #232b3d;
+    --accent: #6d9bff; --accent-soft: #15213f; --leg: #45d19a; --leg-soft: #0f2a21;
+    --warn: #f0b35a; --warn-soft: #2b2012; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #070a11; --surface: #0f1420; --fg: #f3f5fa; --fg-2: #aab3c7; --line: #232b3d;
+  --accent: #6d9bff; --accent-soft: #15213f; --leg: #45d19a; --leg-soft: #0f2a21;
+  --warn: #f0b35a; --warn-soft: #2b2012; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 16px; line-height: 1.6; margin: 0; }
+.wrap { max-width: 760px; margin: 0 auto; padding-inline: 20px; padding-block: 40px 80px; display: flex; flex-direction: column; gap: 44px; }
+header { display: flex; flex-direction: column; gap: 10px; }
+.eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+h1 { font-size: clamp(30px, 6vw, 44px); line-height: 1.05; letter-spacing: -.03em; margin: 0; text-wrap: balance; }
+h2 { font-size: 24px; letter-spacing: -.02em; margin: 0 0 12px; text-wrap: balance; }
+h3 { font-size: 17px; margin: 18px 0 6px; }
+p, li { max-width: 68ch; }
+p { margin: 0 0 12px; }
+ul, ol { margin: 0 0 12px; padding-left: 22px; }
+li { margin-bottom: 6px; }
+.lede { font-size: 18px; color: var(--fg-2); }
+.muted { color: var(--fg-2); }
+section { display: flex; flex-direction: column; }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.box { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
+.key { background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); border-radius: 14px; padding: 16px 20px; }
+.warn { background: var(--warn-soft); border-radius: 14px; padding: 14px 18px; color: var(--fg); }
+.warn b { color: var(--warn); }
+.table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 15px; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--fg-2); font-weight: 700; }
+tr:last-child td { border-bottom: none; }
+td.r, th.r { text-align: right; }
+.leg { color: var(--leg); font-weight: 700; }
+.chip { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
+.chip.legc { background: var(--leg-soft); color: var(--leg); }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+.grid2 > * { min-width: 0; }
+.q { display: flex; flex-direction: column; gap: 4px; }
+.q .label { font-weight: 700; }
+.q .opts { color: var(--fg-2); font-size: 15px; }
+.why { font-size: 14px; color: var(--fg-2); }
+.screen { background: var(--surface); border: 1px solid var(--line); border-radius: 22px; padding: 16px; display: flex; flex-direction: column; gap: 10px; font-size: 14px; }
+.screen .t { font-weight: 700; font-size: 15px; }
+.big { font-family: var(--mono); font-size: 30px; font-weight: 600; letter-spacing: -.02em; }
+.row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.pill { border-radius: 99px; padding: 8px 12px; background: var(--accent); color: #fff; font-weight: 700; text-align: center; }
+.pill.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); }
+.week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; text-align: center; font-size: 12px; }
+.week span { padding: 6px 0; border-radius: 10px; border: 1px solid var(--line); }
+.week .l { background: var(--leg-soft); color: var(--leg); border-color: transparent; font-weight: 700; }
+.week .u { background: var(--accent-soft); color: var(--accent); border-color: transparent; font-weight: 700; }
+.decisions li { margin-bottom: 12px; }
+.decisions b { display: block; }
+.sources li { font-size: 14px; }
+a { color: var(--accent); }
+pre.mermaid { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px; overflow-x: auto; }
+@media (max-width: 460px) { .wrap { padding-block: 24px 60px; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">Propuesta para revisar · DEFIT</span>
+    <h1>Entrenamiento, día de pierna y récords</h1>
+    <p class="lede">Cómo cambiar el cuestionario para quienes entrenan, cómo ajustar la meta en días de pierna sin romper el plan, y cómo registrar rutinas y récords en el gym con el menor número de toques posible.</p>
+  </header>
+
+  <section>
+    <h2>En resumen</h2>
+    <div class="key">
+      <ul>
+        <li><b>El cuestionario se divide en dos:</b> quien no entrena responde 5 preguntas; quien entrena suma 5 más (días, cuáles, cuántos de pierna, duración e intensidad).</li>
+        <li><b>El cálculo se vuelve más preciso:</b> se separa la vida diaria del entrenamiento. Hoy usamos un solo multiplicador, que según la evidencia tiende a sobrestimar el gasto.</li>
+        <li><b>La meta puede variar por día:</b> más calorías en pierna, algo menos en tren superior y menos en descanso, <b>con el mismo total semanal</b>. El déficit de la semana no cambia.</li>
+        <li><b>Botón de tipo de día en Hoy:</b> Descanso, Superior o Pierna. Si entrenaste distinto a lo planeado, lo cambias y la meta del día se ajusta sola.</li>
+        <li><b>Cinco objetivos en vez de dos:</b> bajar peso, recomposición corporal, mantener, ganar peso limpio y ganar peso más rápido. Cada uno con su porcentaje sobre el gasto y su ritmo esperado.</li>
+        <li><b>Nueva pestaña Entreno:</b> rutina sugerida según tus días, pantalla de gym con un ejercicio a la vez, el peso de la última vez ya cargado y récords automáticos con premio.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <h2>Lo que dice la evidencia</h2>
+    <ol>
+      <li><b>Los multiplicadores de actividad sobrestiman.</b> El factor "moderado ×1,55" mezcla el día entero con el gimnasio y es el error más común en estos cálculos. Solo aplica a quien entrena de 3 a 5 veces intensas por semana <em>y además</em> camina 7.000–10.000 pasos al día. Lo recomendado es calcular aparte la actividad diaria y el ejercicio.</li>
+      <li><b>La pierna gasta más.</b> La sentadilla tiene el mayor costo energético entre los ejercicios medidos, por encima de prensa, extensiones, press de banca y brazos. Al 80% de 1RM los ejercicios de pierna superan 20 kcal por minuto de trabajo.</li>
+      <li><b>Valores de referencia (Compendio 2024):</b> pesas con varios ejercicios, 8–15 reps: <span class="num">3,5 MET</span>. Sentadilla y peso muerto: <span class="num">5,0 MET</span>. Pesas vigorosas o powerlifting: <span class="num">6,0 MET</span>. Circuito: <span class="num">5,8 MET</span>.</li>
+      <li><b>Carbohidratos según el día.</b> Se recomiendan de 3 a 7 g/kg al día para quien entrena con pesas, más en días exigentes y menos en descanso. A esto se le llama periodización de carbohidratos.</li>
+      <li><b>Ciclar calorías funciona igual o mejor.</b> Con el mismo promedio semanal, la pérdida de grasa es prácticamente igual a la de una meta fija. En personas entrenadas, subir los carbohidratos algunos días preservó mejor la masa magra y el metabolismo en reposo.</li>
+      <li><b>Proteína en déficit:</b> de 2,3 a 3,1 g por kg de masa magra (en la práctica, unos 2 g por kg de peso). Grasa entre 15% y 30% de las calorías. Ritmo de pérdida recomendado para cuidar el músculo: de 0,5% a 1% del peso por semana.</li>
+      <li><b>Recomposición corporal (bajar grasa y ganar músculo a la vez):</b> es posible, también en personas entrenadas, si se cumplen tres cosas: entrenamiento de fuerza progresivo, proteína de 1,6 a 2,4 g/kg y calorías cerca del mantenimiento (déficit pequeño, mantenimiento o superávit leve). Funciona mejor en principiantes, en quien retoma después de una pausa y en quien tiene más grasa.</li>
+      <li><b>Ganar peso:</b> se recomienda un superávit de 10% a 20% sobre el gasto en principiantes e intermedios, y de 5% a 10% en avanzados. Un estudio con personas entrenadas comparó +5% contra +15% durante 8 semanas: con más calorías no ganaron más músculo, <b>solo más grasa</b>.</li>
+      <li><b>Récords por fuerza estimada:</b> la fórmula de Epley (peso × (1 + reps/30)) estima el máximo a 1 repetición. Es fiable con series de 3 a 10 repeticiones; con más de 10 el error crece.</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>El nuevo cálculo</h2>
+    <p>Hoy: <span class="num">basal × factor de actividad − déficit</span>. Propuesta, en tres piezas:</p>
+    <div class="grid2">
+      <div class="box">
+        <h3 style="margin-top:0">1. Base del día</h3>
+        <p class="muted">Metabolismo basal (Mifflin-St Jeor, o Katch-McArdle si la persona sabe su % de grasa) × tu vida fuera del gym:</p>
+        <p class="num">Sentado ×1,20 · De pie o caminando ×1,35 · Trabajo físico ×1,50</p>
+      </div>
+      <div class="box">
+        <h3 style="margin-top:0">2. Entreno de ese día</h3>
+        <p class="muted">(MET − 1) × peso en kg × horas. El −1 evita contar dos veces el basal.</p>
+        <p class="num">Superior 3,5 · Pierna 5,0 · Intenso +1,0 · Cardio aparte</p>
+      </div>
+    </div>
+    <p style="margin-top:14px"><b>3. Meta del día</b> = base + entreno de ese día − déficit. El total de la semana siempre es igual a (base + promedio de entreno) × 7 − déficit × 7.</p>
+
+    <h3>Ejemplo: hombre, 31 años, 178 cm, 92 kg, trabajo sentado</h3>
+    <p class="muted">Entrena 4 días de 60 min: 2 de pierna y 2 de tren superior. Déficit de 600 kcal.</p>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Tipo de día</th><th class="r">Base</th><th class="r">Entreno</th><th class="r">Meta</th><th class="r">Días/sem</th></tr></thead>
+        <tbody>
+          <tr><td>Descanso</td><td class="r num">2.260</td><td class="r num">0</td><td class="r num">1.660</td><td class="r num">3</td></tr>
+          <tr><td>Tren superior</td><td class="r num">2.260</td><td class="r num">+230</td><td class="r num">1.890</td><td class="r num">2</td></tr>
+          <tr><td class="leg">Pierna</td><td class="r num">2.260</td><td class="r num leg">+368</td><td class="r num leg">2.028</td><td class="r num">2</td></tr>
+          <tr><td><b>Promedio (meta fija)</b></td><td class="r num">2.260</td><td class="r num">+171</td><td class="r num"><b>1.831</b></td><td class="r num">7</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:12px">Suma semanal con meta variable: <span class="num">3×1.660 + 2×1.890 + 2×2.028 = 12.816</span>. Con meta fija: <span class="num">1.831 × 7 = 12.817</span>. Es el mismo déficit, repartido según el esfuerzo de cada día.</p>
+    <p><b>Macros:</b> la proteína (2 g/kg = 184 g) y la grasa (0,8 g/kg = 74 g) se fijan en gramos todos los días, y los carbohidratos absorben la diferencia. Así, en pierna hay unos <b>158 g de carbohidratos</b> contra 66 g en descanso: <b>+92 g</b>, justo lo que pide un día de mayor exigencia.</p>
+    <div class="warn" style="margin-top:6px">
+      <b>Ojo:</b> con el cálculo actual (×1,55) esta misma persona tendría un gasto de 2.919 kcal. Con el nuevo, 2.431: casi 500 kcal menos. Es probable que las metas <b>bajen</b> al recalcular. Las nuevas están mejor fundamentadas, pero conviene avisarle a cada usuario y mostrarle el porqué.
+    </div>
+  </section>
+
+  <section>
+    <h2>Cuestionario que se divide</h2>
+    <pre class="mermaid">
+flowchart TD
+  A[Sexo, edad, altura, peso] --> B[Vida fuera del gym]
+  B --> C{¿Entrenas?}
+  C -- No --> G[Objetivo]
+  C -- Sí --> D[Tipo: pesas, cardio o ambos]
+  D --> E[Qué días y cuántos de pierna]
+  E --> F[Duración e intensidad]
+  F --> H[Meta fija o según el día]
+  H --> G
+  G --> R[Resumen del plan]
+    </pre>
+
+    <div class="grid2" style="margin-top:14px">
+      <div class="box">
+        <h3 style="margin-top:0">Para todos</h3>
+        <div class="q"><span class="label">Sexo, edad, altura, peso</span><span class="opts">Igual que hoy.</span></div>
+        <div class="q" style="margin-top:10px"><span class="label">% de grasa (opcional)</span><span class="opts">"No sé" es válido. Si lo sabe, se usa Katch-McArdle.</span><span class="why">Más preciso en personas musculosas.</span></div>
+        <div class="q" style="margin-top:10px"><span class="label">Tu día fuera del gym</span><span class="opts">Sentado · De pie o caminando · Trabajo físico</span><span class="why">Reemplaza la pregunta de actividad actual.</span></div>
+        <div class="q" style="margin-top:10px"><span class="label">¿Entrenas?</span><span class="opts">Sí · No</span></div>
+        <div class="q" style="margin-top:10px"><span class="label">Objetivo</span><span class="opts">Bajar peso · Recomposición · Mantener · Ganar peso</span><span class="why">Recomposición solo aparece si entrenas con pesas.</span></div>
+      </div>
+      <div class="box">
+        <h3 style="margin-top:0">Solo si entrenas</h3>
+        <div class="q"><span class="label">¿Qué haces?</span><span class="opts">Pesas · Cardio · Ambos</span></div>
+        <div class="q" style="margin-top:10px"><span class="label">¿Qué días?</span><span class="opts">L M X J V S D (tocas los días)</span><span class="why">Arma el calendario, la rutina y los avisos.</span></div>
+        <div class="q" style="margin-top:10px"><span class="label">¿Cuáles son de pierna?</span><span class="opts">Tocas los días de pierna entre los elegidos</span></div>
+        <div class="q" style="margin-top:10px"><span class="label">¿Cuánto dura?</span><span class="opts">45 · 60 · 90 min</span></div>
+        <div class="q" style="margin-top:10px"><span class="label">¿Qué tan duro?</span><span class="opts">Moderado · Intenso</span></div>
+        <div class="q" style="margin-top:10px"><span class="label">Tu meta diaria</span><span class="opts">Según el día (recomendado) · Igual todos los días</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Los objetivos</h2>
+    <p>Todos se calculan sobre el gasto promedio del día (base + entreno). En el ejemplo de arriba ese gasto es <span class="num">2.431 kcal</span>.</p>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Objetivo</th><th>Calorías</th><th class="r">Ejemplo</th><th>Proteína</th><th>Ritmo esperado</th></tr></thead>
+        <tbody>
+          <tr><td><b>Bajar peso</b></td><td>−600 / −800 / −1.000 kcal (como hoy, con advertencias)</td><td class="r num">1.831</td><td>2,0–2,4 g/kg</td><td>0,5–1% del peso por semana</td></tr>
+          <tr><td><b>Recomposición</b></td><td>−10% en promedio: los días de entreno quedan cerca del mantenimiento y el déficit va en los descansos</td><td class="r num">2.188</td><td>2,2 g/kg</td><td>Peso casi estable; se mide en fuerza y cintura</td></tr>
+          <tr><td><b>Mantener</b></td><td>Igual al gasto</td><td class="r num">2.431</td><td>1,6–2,0 g/kg</td><td>Peso estable</td></tr>
+          <tr><td><b>Ganar peso limpio</b></td><td>+10%</td><td class="r num">2.674</td><td>1,6–2,2 g/kg</td><td>≈ +0,2 kg por semana</td></tr>
+          <tr><td><b>Ganar peso más rápido</b></td><td>+20%</td><td class="r num">2.917</td><td>1,6–2,2 g/kg</td><td>≈ +0,4 kg por semana</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <ul style="margin-top:14px">
+      <li><b>Recomposición solo si entrenas con pesas.</b> Sin estímulo de fuerza no hay músculo que ganar; la app lo explica y sugiere "Bajar peso" o "Mantener".</li>
+      <li><b>"Ganar peso más rápido" lleva advertencia:</b> la evidencia muestra que más superávit suma sobre todo grasa. Se recomienda el ritmo limpio. Si la persona no entrena, se le avisa que el peso ganado será mayormente grasa.</li>
+      <li><b>Dos alertas automáticas:</b> si en Ganar peso no sube nada en 3 semanas, la app sugiere +100 kcal. Si en Bajar peso baja más de 1% por semana, sugiere suavizar el déficit.</li>
+      <li><b>En los retos</b> cumplir sigue siendo quedar entre 90% y 110% de tu meta, sea cual sea el objetivo. Quien está en volumen también compite por constancia.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>El botón de día de pierna</h2>
+    <p>En Hoy aparece un selector con lo que toca según el plan. Si el día cambió, se toca otra opción:</p>
+    <div class="screen" style="max-width:380px">
+      <div class="row"><span class="t">Hoy toca</span><span class="chip legc">Pierna · +368 kcal</span></div>
+      <div class="row" style="gap:6px">
+        <span class="pill ghost" style="flex:1">Descanso</span>
+        <span class="pill ghost" style="flex:1">Superior</span>
+        <span class="pill" style="flex:1;background:var(--leg)">Pierna</span>
+      </div>
+      <span class="muted">Tu meta de hoy: <b class="num">2.028 kcal</b> · 158 g de carbohidratos</span>
+    </div>
+    <ul style="margin-top:14px">
+      <li><b>Qué pasa con la meta principal:</b> nada. El déficit semanal sigue igual y el día de pierna ya estaba contado en el plan; solo se mueven calorías de un día a otro.</li>
+      <li><b>Si entrenas pierna un día que no tocaba:</b> ese día sube porque de verdad gastaste más, y el resto de la semana no se toca.</li>
+      <li><b>Si no entrenas:</b> marcas Descanso y la meta del día baja. Así no te comes calorías que no gastaste.</li>
+      <li><b>Para que sea justo en los retos:</b> el tipo de día solo se puede cambiar el mismo día (o hasta la mañana siguiente), y el día cuenta como cumplido contra la meta de <b>ese</b> día.</li>
+      <li><b>Quien eligió meta fija</b> no ve el selector: su meta es el promedio todos los días.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>La pestaña Entreno</h2>
+    <p>Pensada para usarse con una mano, sudado y con prisa. Tres pantallas, nada más.</p>
+    <div class="grid2">
+      <div class="screen">
+        <span class="t">1 · Tu semana</span>
+        <div class="week"><span class="l">L</span><span class="u">M</span><span>X</span><span class="l">J</span><span class="u">V</span><span>S</span><span>D</span></div>
+        <div class="row"><span>Hoy: <b>Pierna</b> · 6 ejercicios</span></div>
+        <span class="pill">Empezar</span>
+        <span class="muted">Debajo: "Cambiar rutina" y "Hoy hice otra cosa".</span>
+      </div>
+      <div class="screen">
+        <span class="t">2 · En el gym (un ejercicio a la vez)</span>
+        <span>Sentadilla · serie 2 de 4</span>
+        <div class="row"><span class="big">60 kg</span><span class="big">× 8</span></div>
+        <span class="muted">Última vez: 57,5 kg × 8 · botones − / + grandes</span>
+        <span class="pill">Serie hecha</span>
+        <span class="muted">Arranca un descanso de 90 s. Se desliza al siguiente ejercicio.</span>
+      </div>
+      <div class="screen">
+        <span class="t">3 · Al terminar</span>
+        <div class="row"><span>Nuevo récord</span><span class="chip legc">Sentadilla 62,5 kg</span></div>
+        <span class="muted">Tiempo, series y volumen total. Tu personaje celebra. En el muro: "Brayan rompió su récord en sentadilla".</span>
+      </div>
+    </div>
+
+    <h3>Rutinas sugeridas según tus días</h3>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Días</th><th>Rutina sugerida</th><th>Pierna</th></tr></thead>
+        <tbody>
+          <tr><td class="num">2</td><td>Cuerpo completo A y B</td><td>las dos (pierna incluida)</td></tr>
+          <tr><td class="num">3</td><td>Cuerpo completo A-B-A, o Empuje · Jalón · Pierna</td><td>1 dedicada</td></tr>
+          <tr><td class="num">4</td><td>Superior · Inferior · Superior · Inferior</td><td>2 dedicadas</td></tr>
+          <tr><td class="num">5</td><td>Superior · Inferior + Empuje · Jalón · Pierna</td><td>2 dedicadas</td></tr>
+          <tr><td class="num">6</td><td>Empuje · Jalón · Pierna × 2</td><td>2 dedicadas</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:10px">Cada rutina trae 5 o 6 ejercicios, con 3 o 4 series de 8 a 12 repeticiones. Para personalizarla: se toca un ejercicio para cambiarlo por otro del mismo músculo, se agrega o se quita y se reordena arrastrando. La biblioteca tiene unos 60 ejercicios agrupados por músculo, con buscador.</p>
+
+    <h3>Cuando no entrenas lo planeado</h3>
+    <ul>
+      <li><b>"Hoy hice otra cosa":</b> eliges la rutina que sí hiciste y el día se ajusta solo.</li>
+      <li><b>"Mover a mañana":</b> la sesión pasa al siguiente día libre y el calendario se reacomoda.</li>
+      <li><b>"Hoy no entrené":</b> queda como descanso, sin castigo, y la meta del día baja.</li>
+      <li><b>Si no marcas nada:</b> el aviso de la noche pregunta "¿Entrenaste hoy?" con respuesta de un toque.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Récords y premios</h2>
+    <ul>
+      <li><b>Por ejercicio se guardan cuatro números:</b> peso máximo, mejor fuerza estimada (Epley, con series de 1 a 10 reps), más repeticiones con un mismo peso y cantidad de sesiones.</li>
+      <li><b>Récord automático:</b> cuando superas cualquiera de los dos primeros, la serie brilla y al final aparece "Nuevo récord". No hay que hacer nada extra.</li>
+      <li><b>Ficha de cada ejercicio:</b> una gráfica simple de tu fuerza estimada en el tiempo, más "+12,5 kg desde que empezaste".</li>
+      <li><b>Medallas nuevas:</b> Primer récord · 10 récords · 50 récords · Semana de entreno completa · Más fuerte (+10% en un ejercicio).</li>
+      <li><b>Muro y amigos:</b> los récords aparecen en el muro. En el perfil de cada uno se ven sus mejores marcas.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Qué cambia en los retos</h2>
+    <p>Los retos siguen siendo de cumplir la meta calórica. Con meta variable, cada día se compara contra la meta de <b>ese</b> día. Mientras dura un reto, el plan (días, duración, intensidad y déficit) queda congelado, igual que hoy. Lo único que se puede tocar es el tipo de día, con las reglas de arriba.</p>
+    <p>Más adelante se podría sumar un tipo de reto de entrenamiento, por ejemplo "quién entrena más veces en 4 semanas". Queda fuera de esta propuesta.</p>
+  </section>
+
+  <section>
+    <h2>Decisiones para ustedes</h2>
+    <ol class="decisions">
+      <li><b>¿Dónde queda Peso?</b> La barra tiene cinco espacios. Propuesta: Entreno reemplaza a Peso, y el registro de peso pasa a una tarjeta en Hoy (un toque para anotar) con su gráfica en Perfil.</li>
+      <li><b>Porcentajes de los objetivos:</b> ¿les parecen bien −10% para recomposición, +10% para ganar peso limpio y +20% para más rápido?</li>
+      <li><b>¿Meta de proteína visible?</b> Mostrar proteína del día contra una meta de unos 2 g/kg. Para quien entrena es casi tan importante como las calorías.</li>
+      <li><b>¿Cómo avisamos que la meta cambia?</b> Al recalcular, muchas metas van a bajar. Propuesta: pantalla que compara antes y ahora con una explicación, y que la persona confirme.</li>
+      <li><b>Descanso entre series:</b> 90 s por defecto y ajustable. ¿Suena el celular al terminar?</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>Orden de construcción</h2>
+    <ol>
+      <li><b>Cálculo y cuestionario:</b> nuevo modelo, las dos ramas, meta por tipo de día, botón en Hoy y retos contra la meta del día.</li>
+      <li><b>Entreno básico:</b> semana, rutinas sugeridas, pantalla de gym, historial y "no entrené lo planeado".</li>
+      <li><b>Récords:</b> detección automática, ficha por ejercicio, medallas y muro.</li>
+      <li><b>Personalizar rutinas:</b> biblioteca de ejercicios, cambiar, agregar, quitar y reordenar.</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>Fuentes</h2>
+    <ul class="sources">
+      <li><a href="https://pacompendium.com/conditioning-exercise/">2024 Adult Compendium of Physical Activities: acondicionamiento (valores MET)</a></li>
+      <li><a href="https://journals.plos.org/plosone/article?id=10.1371%2Fjournal.pone.0181311">Energy cost of isolated resistance exercises across low- to high-intensities (PLOS ONE)</a></li>
+      <li><a href="https://doi.org/10.3390/nu15153455">Males Have a Higher Energy Expenditure than Females during Squat Training (Nutrients)</a></li>
+      <li><a href="https://www.researchgate.net/publication/6493090_Energy_Expenditure_During_Bench_Press_and_Squat_Exercises">Energy Expenditure During Bench Press and Squat Exercises</a></li>
+      <li><a href="https://www.cambridge.org/core/journals/british-journal-of-nutrition/article/carbohydrate-intake-and-resistancebased-exercise-are-current-recommendations-reflective-of-actual-need/45C97BD7A99949777E3474E50709A7DA">Carbohydrate intake and resistance-based exercise (British Journal of Nutrition)</a></li>
+      <li><a href="https://link.springer.com/article/10.1186/s12970-017-0189-4">ISSN position stand: nutrient timing</a></li>
+      <li><a href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8471721/">Achieving an Optimal Fat Loss Phase in Resistance-Trained Athletes</a></li>
+      <li><a href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7739314/">Intermittent Energy Restriction Attenuates the Loss of Fat Free Mass in Resistance Trained Individuals</a></li>
+      <li><a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC13258728/">Continuous vs. Intermittent Caloric Restriction on Fat Loss (RCT)</a></li>
+      <li><a href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4033492/">Evidence-based recommendations for natural bodybuilding contest preparation</a></li>
+      <li><a href="https://www.researchgate.net/publication/257350851_A_Systematic_Review_of_Dietary_Protein_During_Caloric_Restriction_in_Resistance_Trained_Lean_Athletes_A_Case_for_Higher_Intakes">Dietary Protein During Caloric Restriction in Resistance Trained Lean Athletes</a></li>
+      <li><a href="https://fitnessvolt.com/tdee-calculator/activity-level-guide/">TDEE activity level guide: sobrestimación de los multiplicadores</a></li>
+      <li><a href="https://www.researchgate.net/publication/343549590_Body_Recomposition_Can_Trained_Individuals_Build_Muscle_and_Lose_Fat_at_the_Same_Time">Body Recomposition: Can Trained Individuals Build Muscle and Lose Fat at the Same Time? (Barakat y col., 2020)</a></li>
+      <li><a href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10620361/">Effect of Small and Large Energy Surpluses on Strength, Muscle, and Skinfold Thickness in Resistance-Trained Individuals</a></li>
+      <li><a href="https://www.strongerbyscience.com/bulking/">Optimizing Bulking Diets To Facilitate Hypertrophy (Stronger by Science)</a></li>
+      <li><a href="https://en.wikipedia.org/wiki/One-repetition_maximum">One-repetition maximum: fórmulas de Epley y Brzycki</a></li>
+    </ul>
+  </section>
+</div>
