@@ -7,7 +7,7 @@ import { PALETTES } from "../lib/palettes";
 import Reminders from "../components/Reminders";
 import { PersonStats } from "../components/PersonCard";
 import InviteFriends from "../components/InviteFriends";
-import { LockToggle } from "../components/LockScreen";
+import PasskeySettings from "../components/PasskeySettings";
 
 export default function ProfileScreen({ profile, ch, onChange, onEditPlan, planLocked }) {
   const [saving, setSaving] = useState(false);
@@ -90,7 +90,7 @@ export default function ProfileScreen({ profile, ch, onChange, onEditPlan, planL
 
       <Reminders profile={profile} onChange={onChange} />
 
-      <LockToggle profile={profile} />
+      <PasskeySettings profile={profile} />
 
       <button className="btn btn-glass btn-block" onClick={onEditPlan}>
         {planLocked

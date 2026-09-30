@@ -8,6 +8,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@simplewebauthn/browser": "^13.3.0",
+    "@simplewebauthn/server": "^13.3.3",
     "@supabase/supabase-js": "^2.117.2",
     "lucide-react": "^1.49.0",
     "motion": "^13.4.6",

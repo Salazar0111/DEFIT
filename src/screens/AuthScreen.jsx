@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Mail } from "lucide-react";
+import { Mail, ScanFace } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import { loginWithPasskey, passkeySupported } from "../lib/passkey";
 
 const ERRORS = {
   "Invalid login credentials": "Correo o contraseña incorrectos.",
@@ -25,6 +26,14 @@ export default function AuthScreen() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  const faceId = async () => {
+    setError("");
+    setBusy(true);
+    try { await loginWithPasskey(); }
+    catch (err) { setError(err.message); }
+    finally { setBusy(false); }
+  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -77,6 +86,17 @@ export default function AuthScreen() {
           <motion.form key={mode} {...fade} onSubmit={submit} className="glass" style={styles.card}>
             <h2>{mode === "login" ? "Inicia sesión" : "Crea tu cuenta"}</h2>
 
+            {mode === "login" && passkeySupported() && (
+              <>
+                <button type="button" className="btn btn-primary btn-block" disabled={busy} onClick={faceId}>
+                  <ScanFace size={20} strokeWidth={1.8} /> Entrar con Face ID
+                </button>
+                <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-3)" }}>
+                  <span className="divider" style={{ flex: 1 }} /><span className="caption">o con tu correo</span><span className="divider" style={{ flex: 1 }} />
+                </div>
+              </>
+            )}
+
             {mode === "signup" && (
               <div className="field">
                 <label htmlFor="name">Nombre</label>
@@ -106,7 +126,7 @@ export default function AuthScreen() {
               )}
             </AnimatePresence>
 
-            <button className="btn btn-primary btn-block" disabled={busy}>
+            <button className={`btn btn-block ${mode === "login" && passkeySupported() ? "btn-glass" : "btn-primary"}`} disabled={busy}>
               {busy ? "Un momento…" : mode === "login" ? "Entrar" : "Crear cuenta"}
             </button>
           </motion.form>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Crown, HandHeart, Lock, Zap } from "lucide-react";
+import { Crown, HandHeart, Lock, ScanFace, Zap } from "lucide-react";
+import { passkeySupported, registerPasskey } from "./lib/passkey";
 import { supabase } from "./lib/supabase";
 import { applyPalette } from "./lib/palettes";
 import Shell from "./components/Shell";
@@ -12,8 +13,6 @@ import FoodScreen from "./screens/FoodScreen";
 import WeightScreen from "./screens/WeightScreen";
 import ChallengesScreen from "./screens/ChallengesScreen";
 import Sheet from "./components/Sheet";
-import { LockScreen } from "./components/LockScreen";
-import { lockConfig } from "./lib/lock";
 import Medal from "./components/Medal";
 import { useChallenges } from "./lib/useChallenges";
 import { medalById } from "./lib/medals";
@@ -40,7 +39,6 @@ export default function App() {
     return ["home", "food", "weight", "challenges", "profile"].includes(t) ? t : "home";
   });
   const [editingPlan, setEditingPlan] = useState(false);
-  const [locked, setLocked] = useState(false);
 
   useEffect(() => {
     if (DEMO) { setSession({ user: { id: "demo" } }); return; }
@@ -59,18 +57,6 @@ export default function App() {
 
   useEffect(() => { if (profile) applyPalette(profile.palette); }, [profile?.palette]);
 
-  // Candado con Face ID: al abrir, y al volver después de 1 minuto en segundo plano.
-  useEffect(() => {
-    if (!profile?.id || DEMO) return;
-    if (lockConfig(profile.id)) setLocked(true);
-    let hiddenAt = 0;
-    const onVis = () => {
-      if (document.hidden) hiddenAt = Date.now();
-      else if (hiddenAt && Date.now() - hiddenAt > 60000 && lockConfig(profile.id)) setLocked(true);
-    };
-    document.addEventListener("visibilitychange", onVis);
-    return () => document.removeEventListener("visibilitychange", onVis);
-  }, [profile?.id]);
 
   const patchProfile = (patch) => setProfile((p) => ({ ...p, ...patch }));
 
@@ -95,9 +81,7 @@ export default function App() {
     <>
       <div className="ambient" aria-hidden="true" />
       {content}
-      <AnimatePresence>
-        {locked && profile && <LockScreen key="lock" profile={profile} onUnlock={() => setLocked(false)} />}
-      </AnimatePresence>
+
     </>
   );
 }
@@ -113,6 +97,23 @@ function Main({ profile, tab, setTab, patchProfile, onEditPlan }) {
   const result = !pause && ch.unseenResult;
   const newMedal = !pause && !result && ch.medals.find((m) => !m.seen);
   const poke = !pause && !result && !newMedal && ch.pokes[ch.pokes.length - 1];
+
+  // Ofrece "Entrar con Face ID" una sola vez por dispositivo si aún no tiene llave.
+  const [offerFaceId, setOfferFaceId] = useState(false);
+  const [faceIdMsg, setFaceIdMsg] = useState("");
+  useEffect(() => {
+    if (profile.id === "demo" || !passkeySupported()) return;
+    try { if (localStorage.getItem("defit.faceIdAsked")) return; } catch { return; }
+    supabase.from("passkeys").select("id", { count: "exact", head: true }).then(({ count }) => {
+      if (!count) setTimeout(() => setOfferFaceId(true), 1500);
+    });
+  }, [profile.id]);
+  const closeFaceId = () => { setOfferFaceId(false); try { localStorage.setItem("defit.faceIdAsked", "1"); } catch {} };
+  const activateFaceId = async () => {
+    setFaceIdMsg("");
+    try { await registerPasskey(); closeFaceId(); }
+    catch (e) { setFaceIdMsg(e.message); }
+  };
 
   const editPlan = () => {
     if (!ch.planLocked) return onEditPlan();
@@ -167,6 +168,21 @@ function Main({ profile, tab, setTab, patchProfile, onEditPlan }) {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <Sheet open={offerFaceId && !result && !newMedal && !poke} onClose={closeFaceId} title="Entra más rápido">
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "var(--sp-3)", textAlign: "center", paddingBottom: "var(--sp-4)" }}>
+          <motion.span initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", stiffness: 260, damping: 16 }}
+            style={{ width: 88, height: 88, borderRadius: 28, display: "grid", placeItems: "center", color: "var(--on-accent)",
+              background: "linear-gradient(180deg, var(--accent), var(--accent-strong))" }}>
+            <ScanFace size={44} strokeWidth={1.6} />
+          </motion.span>
+          <h1>¿Entrar con Face ID?</h1>
+          <p className="muted">La próxima vez entras mirando tu teléfono, sin escribir la contraseña.</p>
+          {faceIdMsg && <p role="alert" style={{ color: "var(--danger)", fontWeight: 700, fontSize: "var(--t-small)" }}>{faceIdMsg}</p>}
+          <button className="btn btn-primary btn-block" onClick={activateFaceId}><ScanFace size={18} strokeWidth={2} /> Activar Face ID</button>
+          <button className="btn btn-text" onClick={closeFaceId}>Ahora no</button>
+        </div>
+      </Sheet>
 
       <Sheet open={!!newMedal} onClose={after(ch.markMedalsSeen)} title="Nueva medalla">
         {newMedal && medalById(newMedal.kind) && (
