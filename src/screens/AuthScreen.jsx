@@ -7,6 +7,8 @@ const ERRORS = {
   "Invalid login credentials": "Correo o contraseña incorrectos.",
   "Email not confirmed": "Confirma tu correo antes de entrar. Revisa tu bandeja.",
   "User already registered": "Ya existe una cuenta con ese correo.",
+  // El trigger de Supabase rechaza correos que no están en allowed_emails.
+  "Database error saving new user": "Este correo no tiene acceso todavía. Pide que te agreguen.",
 };
 
 const fade = {
