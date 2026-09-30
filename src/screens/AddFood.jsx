@@ -3,6 +3,8 @@ import { AnimatePresence, motion } from "motion/react";
 import { Camera, Search, PenLine, ArrowRight, RotateCcw, Images } from "lucide-react";
 import { estimateFood } from "../lib/supabase";
 import { MEALS, mealForNow, photoToBase64 } from "../lib/food";
+import IngredientEditor from "../components/IngredientEditor";
+import { fromEntry, makeIngredient, serialize, sumIngredients } from "../lib/ingredients";
 
 const ease = [0.16, 1, 0.3, 1];
 const MODES = [
@@ -10,30 +12,43 @@ const MODES = [
   { id: "search", label: "Buscar", Icon: Search },
   { id: "manual", label: "Manual", Icon: PenLine },
 ];
-const EMPTY = { name: "", kcal: "", protein_g: "", carbs_g: "", fat_g: "", portion: "" };
+const DEMO_RESULT = {
+  name: "Bandeja paisa", portion: "1 plato",
+  ingredients: [
+    { name: "Arroz blanco", grams: 150, kcal: 195, protein_g: 4, carbs_g: 42, fat_g: 0.4 },
+    { name: "Fríjoles", grams: 120, kcal: 160, protein_g: 10, carbs_g: 28, fat_g: 1 },
+    { name: "Chicharrón", grams: 50, kcal: 280, protein_g: 14, carbs_g: 0, fat_g: 25 },
+    { name: "Carne molida", grams: 80, kcal: 190, protein_g: 18, carbs_g: 0, fat_g: 13 },
+    { name: "Huevo frito", grams: 50, kcal: 100, protein_g: 6, carbs_g: 0.5, fat_g: 8 },
+    { name: "Plátano maduro", grams: 60, kcal: 120, protein_g: 1, carbs_g: 31, fat_g: 0.2 },
+  ],
+};
 
-export default function AddFood({ onSave, demo }) {
+// initial: comida ya guardada que se quiere editar (salta el paso de elegir cómo registrar).
+export default function AddFood({ onSave, demo, initial }) {
   const [mode, setMode] = useState("photo");
-  const [meal, setMeal] = useState(mealForNow());
+  const [meal, setMeal] = useState(initial?.meal || mealForNow());
   const [query, setQuery] = useState("");
   const [preview, setPreview] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [draft, setDraft] = useState(null); // resultado editable antes de guardar
+  // Comida editable antes de guardar: nombre + ingredientes (gramos y kcal corregibles).
+  const [draft, setDraft] = useState(initial ? { name: initial.name, items: fromEntry(initial), source: initial.source, portion: initial.portion } : null);
   const [saving, setSaving] = useState(false);
   const cameraRef = useRef(null);
   const galleryRef = useRef(null);
 
   const reset = () => { setDraft(null); setPreview(null); setError(""); setQuery(""); };
 
+  const estimate = (payload) =>
+    demo ? new Promise((ok) => setTimeout(() => ok(DEMO_RESULT), 800)) : estimateFood(payload);
+
   const run = async (payload) => {
     setBusy(true);
     setError("");
     try {
-      const r = demo
-        ? await new Promise((ok) => setTimeout(() => ok({ name: "Bandeja paisa", kcal: 1150, protein_g: 52, carbs_g: 98, fat_g: 58, portion: "1 plato ~650 g" }), 900))
-        : await estimateFood(payload);
-      setDraft({ ...r, source: payload.mode === "photo" ? "photo" : "search" });
+      const r = await estimate(payload);
+      setDraft({ name: r.name, portion: r.portion, items: r.ingredients.map(makeIngredient), source: payload.mode === "photo" ? "photo" : "search" });
     } catch (e) {
       setError(e.message);
     } finally {
@@ -52,20 +67,24 @@ export default function AddFood({ onSave, demo }) {
 
   const save = async () => {
     const d = draft;
-    if (!d.name.trim() || d.kcal === "" || Number(d.kcal) < 0) { setError("Ponle nombre y calorías."); return; }
+    const items = d.items.filter((i) => i.name.trim() || i.grams);
+    const t = sumIngredients(items);
+    if (!d.name.trim()) { setError("Ponle un nombre a la comida."); return; }
+    if (!items.length || t.kcal <= 0) { setError("Agrega al menos un ingrediente con calorías."); return; }
     setSaving(true);
     try {
       await onSave({
         meal,
         name: d.name.trim().slice(0, 80),
-        kcal: Math.round(Number(d.kcal)),
-        protein_g: Number(d.protein_g) || 0,
-        carbs_g: Number(d.carbs_g) || 0,
-        fat_g: Number(d.fat_g) || 0,
+        kcal: t.kcal,
+        protein_g: t.protein_g,
+        carbs_g: t.carbs_g,
+        fat_g: t.fat_g,
         portion: d.portion?.trim() || null,
         source: d.source || "manual",
+        ingredients: serialize(items),
       });
-      reset();
+      if (!initial) reset();
     } catch (e) {
       setError(e.message);
     } finally {
@@ -82,11 +101,15 @@ export default function AddFood({ onSave, demo }) {
           <motion.div key="draft" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.3, ease }} style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
             {preview && <img src={preview} alt="" style={styles.thumb} />}
-            <DraftForm draft={draft} onChange={(p) => setDraft((x) => ({ ...x, ...p }))} />
+            <IngredientEditor name={draft.name} onName={(name) => setDraft((x) => ({ ...x, name }))}
+              items={draft.items} onItems={(items) => setDraft((x) => ({ ...x, items }))}
+              onEstimate={(query) => estimate({ mode: "text", query })} />
             {error && <p role="alert" style={styles.error}>{error}</p>}
-            <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "var(--sp-2)" }}>
-              <button className="btn btn-glass" onClick={reset} aria-label="Descartar"><RotateCcw size={18} strokeWidth={1.8} /></button>
-              <button className="btn btn-primary" disabled={saving} onClick={save}>{saving ? "Guardando…" : "Agregar"}</button>
+            <div style={styles.actionBar}>
+              {!initial && <button className="btn btn-glass" onClick={reset} aria-label="Descartar"><RotateCcw size={18} strokeWidth={1.8} /></button>}
+              <button className="btn btn-primary" style={initial ? { gridColumn: "1 / -1" } : undefined} disabled={saving} onClick={save}>
+                {saving ? "Guardando…" : initial ? "Guardar cambios" : "Agregar"}
+              </button>
             </div>
           </motion.div>
         ) : (
@@ -134,7 +157,7 @@ export default function AddFood({ onSave, demo }) {
             )}
 
             {mode === "manual" && (
-              <button className="btn btn-primary btn-block" onClick={() => setDraft({ ...EMPTY, source: "manual" })}>
+              <button className="btn btn-primary btn-block" onClick={() => setDraft({ name: "", portion: null, items: [makeIngredient({ name: "", grams: 100, kcal: 0 })], source: "manual" })}>
                 Escribir los datos
               </button>
             )}
@@ -143,30 +166,6 @@ export default function AddFood({ onSave, demo }) {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
-  );
-}
-
-function DraftForm({ draft, onChange }) {
-  const f = (key, label, props = {}) => (
-    <div className="field" style={props.style}>
-      <label htmlFor={`d-${key}`}>{label}</label>
-      <input id={`d-${key}`} value={draft[key] ?? ""} onChange={(e) => onChange({ [key]: e.target.value })} {...props.input} />
-    </div>
-  );
-  const n = { type: "number", inputMode: "decimal", min: 0, placeholder: "0" };
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
-      {f("name", "Nombre", { input: { maxLength: 80, placeholder: "Ej: Arroz con pollo" } })}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--sp-3)" }}>
-        {f("kcal", "Calorías (kcal)", { input: { ...n, inputMode: "numeric" } })}
-        {f("portion", "Porción", { input: { maxLength: 80, placeholder: "1 plato" } })}
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "var(--sp-3)" }}>
-        {f("protein_g", "Proteína (g)", { input: n })}
-        {f("carbs_g", "Carbos (g)", { input: n })}
-        {f("fat_g", "Grasa (g)", { input: n })}
-      </div>
     </div>
   );
 }
@@ -200,6 +199,11 @@ function Analyzing() {
 }
 
 const styles = {
+  // Barra de guardar fija abajo: con muchos ingredientes el botón no queda lejos.
+  actionBar: {
+    position: "sticky", bottom: 0, zIndex: 2, display: "grid", gridTemplateColumns: "auto 1fr", gap: "var(--sp-2)",
+    padding: "var(--sp-3) 0 2px", background: "linear-gradient(to top, var(--bg) 70%, transparent)",
+  },
   seg: {
     display: "flex", padding: 4, gap: 4, borderRadius: "var(--r-pill)",
     background: "var(--field)", border: "1px solid var(--hairline)",

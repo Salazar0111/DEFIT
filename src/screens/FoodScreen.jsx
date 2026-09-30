@@ -17,7 +17,8 @@ export default function FoodScreen({ profile }) {
   const [day, setDay] = useState(today);
   const [adding, setAdding] = useState(false);
   const [reaction, setReaction] = useState(null);
-  const { entries, loading, add, remove } = useFood(profile, day);
+  const [editing, setEditing] = useState(null);
+  const { entries, loading, add, update, remove } = useFood(profile, day);
   const t = totals(entries);
   const target = profile.target_kcal || 0;
   const pct = target ? Math.min(t.kcal / target, 1) : 0;
@@ -91,12 +92,13 @@ export default function FoodScreen({ profile }) {
                 <motion.div key={e.id} layout initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
                   exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.25, ease }} style={{ overflow: "hidden" }}>
                   <div style={styles.item}>
-                    <div style={{ minWidth: 0, flex: 1 }}>
+                    <button onClick={() => setEditing(e)} aria-label={`Editar ${e.name}`}
+                      style={{ minWidth: 0, flex: 1, textAlign: "left", color: "var(--text)" }}>
                       <p style={{ fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.name}</p>
                       <p className="caption">
-                        {[e.portion, `P ${Math.round(e.protein_g)} · C ${Math.round(e.carbs_g)} · G ${Math.round(e.fat_g)}`].filter(Boolean).join(" · ")}
+                        {[e.ingredients?.length > 1 ? `${e.ingredients.length} ingredientes` : e.portion, `P ${Math.round(e.protein_g)} · C ${Math.round(e.carbs_g)} · G ${Math.round(e.fat_g)}`].filter(Boolean).join(" · ")}
                       </p>
-                    </div>
+                    </button>
                     <span className="num" style={{ fontWeight: 700 }}>{fmt(e.kcal)}</span>
                     <button onClick={() => remove(e.id)} style={styles.del} aria-label={`Eliminar ${e.name}`}>
                       <Trash2 size={17} strokeWidth={1.7} />
@@ -127,6 +129,12 @@ export default function FoodScreen({ profile }) {
               setReaction({ ...foodReaction({ before: t.kcal, after: t.kcal + entry.kcal, target }), key: Date.now() });
               setTimeout(() => setReaction(null), 2600);
             }} />
+          </Sheet>
+          <Sheet open={!!editing} onClose={() => setEditing(null)} title="Editar comida">
+            {editing && (
+              <AddFood key={editing.id} demo={profile.id === "demo"} initial={editing}
+                onSave={async (patch) => { await update(editing.id, patch); setEditing(null); }} />
+            )}
           </Sheet>
           <AnimatePresence>
             {reaction && (

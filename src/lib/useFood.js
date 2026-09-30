@@ -38,6 +38,18 @@ export function useFood(profile, day) {
     return data;
   };
 
+  const update = async (id, patch) => {
+    if (demo) {
+      const i = demoStore.findIndex((e) => e.id === id);
+      if (i >= 0) demoStore[i] = { ...demoStore[i], ...patch };
+      setEntries((x) => x.map((e) => (e.id === id ? { ...e, ...patch } : e)));
+      return;
+    }
+    const { data, error } = await supabase.from("food_entries").update(patch).eq("id", id).select().single();
+    if (error) throw new Error("No se pudo guardar. Revisa tu conexión.");
+    setEntries((x) => x.map((e) => (e.id === id ? data : e)));
+  };
+
   const remove = async (id) => {
     const prev = entries;
     setEntries((x) => x.filter((e) => e.id !== id));
@@ -46,5 +58,5 @@ export function useFood(profile, day) {
     if (error) setEntries(prev);
   };
 
-  return { entries, loading, add, remove, reload: load };
+  return { entries, loading, add, update, remove, reload: load };
 }

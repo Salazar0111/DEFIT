@@ -2,16 +2,17 @@
 // El cliente no envía prompts: solo una foto o el texto de un alimento.
 
 const MODEL = "claude-sonnet-5-5";
-const MAX_TOKENS = 500;
+const MAX_TOKENS = 900;
 const DAILY_LIMIT = 40;
 const MAX_IMAGE_CHARS = 1_400_000; // base64 de una foto de ~900px
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY;
 
-const INSTRUCTIONS = `Eres nutricionista. Estima calorías y macronutrientes con valores realistas para porciones colombianas típicas cuando no se indique la cantidad.
+const INSTRUCTIONS = `Eres nutricionista. Separa la comida en sus ingredientes y estima gramos, calorías y macronutrientes de cada uno, con valores realistas para porciones colombianas típicas cuando no se indique la cantidad.
 Responde SOLO con un objeto JSON, sin texto adicional ni markdown, con esta forma exacta:
-{"name":"nombre corto en español","kcal":número,"protein_g":número,"carbs_g":número,"fat_g":número,"portion":"porción estimada, ej: 1 plato ~350 g","food":true}
+{"food":true,"name":"nombre corto del plato en español","portion":"porción total, ej: 1 plato","ingredients":[{"name":"ingrediente","grams":número,"kcal":número,"protein_g":número,"carbs_g":número,"fat_g":número}]}
+Incluye aceites, salsas y bebidas si se ven o se mencionan. Máximo 12 ingredientes.
 Si no hay comida identificable, responde {"food":false}.`;
 
 async function supabaseFetch(path, token, init = {}) {
@@ -87,13 +88,19 @@ export default async function handler(req, res) {
     if (!parsed || parsed.food === false) {
       return res.status(422).json({ error: "No identifiqué comida. Prueba con otra foto o escríbela." });
     }
+    const ingredients = (Array.isArray(parsed.ingredients) ? parsed.ingredients : []).slice(0, 12).map((i) => ({
+      name: String(i?.name || "Ingrediente").slice(0, 60),
+      grams: num(i?.grams, 3000),
+      kcal: Math.round(num(i?.kcal, 5000)),
+      protein_g: num(i?.protein_g, 500),
+      carbs_g: num(i?.carbs_g, 1000),
+      fat_g: num(i?.fat_g, 500),
+    }));
+    if (!ingredients.length) return res.status(422).json({ error: "No identifiqué comida. Prueba con otra foto o escríbela." });
     return res.status(200).json({
       name: String(parsed.name || "Comida").slice(0, 80),
-      kcal: Math.round(num(parsed.kcal, 5000)),
-      protein_g: num(parsed.protein_g, 500),
-      carbs_g: num(parsed.carbs_g, 1000),
-      fat_g: num(parsed.fat_g, 500),
       portion: String(parsed.portion || "").slice(0, 80),
+      ingredients,
     });
   } catch {
     return res.status(502).json({ error: "No se pudo analizar. Intenta de nuevo." });
