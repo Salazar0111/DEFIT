@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Camera, Search, PenLine, ArrowRight, RotateCcw } from "lucide-react";
+import { Camera, Search, PenLine, ArrowRight, RotateCcw, Images } from "lucide-react";
 import { estimateFood } from "../lib/supabase";
 import { MEALS, mealForNow, photoToBase64 } from "../lib/food";
 
@@ -21,7 +21,8 @@ export default function AddFood({ onSave, demo }) {
   const [error, setError] = useState("");
   const [draft, setDraft] = useState(null); // resultado editable antes de guardar
   const [saving, setSaving] = useState(false);
-  const fileRef = useRef(null);
+  const cameraRef = useRef(null);
+  const galleryRef = useRef(null);
 
   const reset = () => { setDraft(null); setPreview(null); setError(""); setQuery(""); };
 
@@ -95,17 +96,26 @@ export default function AddFood({ onSave, demo }) {
 
             {mode === "photo" && (
               <>
-                <input ref={fileRef} type="file" accept="image/*" capture="environment" hidden onChange={onPhoto} />
-                <button className="glass" style={styles.photoBtn} onClick={() => fileRef.current?.click()} disabled={busy}>
+                {/* capture abre la cámara directo; sin capture, iOS ofrece la fototeca */}
+                <input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden onChange={onPhoto} />
+                <input ref={galleryRef} type="file" accept="image/*" hidden onChange={onPhoto} />
+                <div className="glass" style={styles.photoBox}>
                   {preview && <img src={preview} alt="" style={styles.photoBg} />}
                   {busy ? <Analyzing /> : (
                     <>
                       <span style={styles.photoIcon}><Camera size={28} strokeWidth={1.6} /></span>
-                      <span style={{ fontWeight: 700 }}>Tomar o elegir foto</span>
-                      <span className="caption">La IA estima calorías y macros</span>
+                      <span className="caption" style={{ position: "relative" }}>La IA estima calorías y macros</span>
+                      <div style={{ position: "relative", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--sp-2)", width: "100%", marginTop: "var(--sp-2)" }}>
+                        <button className="btn btn-primary" onClick={() => cameraRef.current?.click()}>
+                          <Camera size={18} strokeWidth={2} /> Cámara
+                        </button>
+                        <button className="btn btn-glass" onClick={() => galleryRef.current?.click()}>
+                          <Images size={18} strokeWidth={1.8} /> Galería
+                        </button>
+                      </div>
                     </>
                   )}
-                </button>
+                </div>
               </>
             )}
 
@@ -203,14 +213,14 @@ const styles = {
     background: "linear-gradient(180deg, var(--accent), var(--accent-strong))",
     boxShadow: "inset 0 1px 0 rgba(255,255,255,.3)",
   },
-  photoBtn: {
-    position: "relative", overflow: "hidden", minHeight: 220, borderRadius: "var(--r-md)",
+  photoBox: {
+    position: "relative", overflow: "hidden", minHeight: 220, borderRadius: "var(--r-md)", padding: "var(--sp-5) var(--sp-4) var(--sp-4)",
     display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "var(--sp-2)",
     color: "var(--text)", borderStyle: "dashed",
   },
   photoBg: { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.25, filter: "blur(2px)" },
   photoIcon: {
-    width: 64, height: 64, borderRadius: 20, display: "grid", placeItems: "center", marginBottom: "var(--sp-1)",
+    position: "relative", width: 64, height: 64, borderRadius: 20, display: "grid", placeItems: "center", marginBottom: "var(--sp-1)",
     background: "color-mix(in srgb, var(--accent) 16%, transparent)", color: "var(--accent)",
   },
   pulse: { width: 56, height: 56, borderRadius: "50%", background: "radial-gradient(circle, var(--accent), transparent 70%)" },
