@@ -10,7 +10,7 @@ import ProfileScreen from "./screens/ProfileScreen";
 import Onboarding from "./screens/Onboarding";
 import HomeScreen from "./screens/HomeScreen";
 import FoodScreen from "./screens/FoodScreen";
-import WeightScreen from "./screens/WeightScreen";
+import WorkoutScreen from "./screens/WorkoutScreen";
 import ChallengesScreen from "./screens/ChallengesScreen";
 import Sheet from "./components/Sheet";
 import Tour from "./components/Tour";
@@ -18,6 +18,7 @@ import TabTip from "./components/TabTip";
 import Medal from "./components/Medal";
 import { useChallenges } from "./lib/useChallenges";
 import { useDayTypes } from "./lib/useDayTypes";
+import { useWorkouts } from "./lib/useWorkouts";
 import { medalById } from "./lib/medals";
 import { avatarSrc } from "./lib/avatars";
 import { challengeTitle } from "./screens/ChallengesScreen";
@@ -36,7 +37,7 @@ const DEMO_PROFILE = params.get("demo") === "nuevo"
       session_min: 60, intensity: "moderate", goal: "lose", target_mode: "by_day",
       targets: { rest: 1660, train: 1890, leg: 2028 },
       // ?demo&tour muestra el tutorial; ?demo&tips, las burbujas por pestaña.
-      tips_seen: params.has("tour") ? [] : params.has("tips") ? ["tour"] : ["tour", "home", "food", "weight", "challenges", "profile"],
+      tips_seen: params.has("tour") ? [] : params.has("tips") ? ["tour"] : ["tour", "home", "food", "workout", "challenges", "profile"],
     };
 
 export default function App() {
@@ -44,7 +45,7 @@ export default function App() {
   const [profile, setProfile] = useState(null);
   const [tab, setTab] = useState(() => {
     const t = params.get("tab");
-    return ["home", "food", "weight", "challenges", "profile"].includes(t) ? t : "home";
+    return ["home", "food", "workout", "challenges", "profile"].includes(t) ? t : "home";
   });
   const [editingPlan, setEditingPlan] = useState(false);
 
@@ -98,6 +99,7 @@ export default function App() {
 function Main({ profile, tab, setTab, patchProfile, onEditPlan }) {
   const ch = useChallenges(profile);
   const dt = useDayTypes(profile);
+  const wk = useWorkouts(profile, patchProfile);
   // Tutoriales vistos (guardados en el perfil para no repetirse en otros dispositivos).
   const seen = (key) => (profile.tips_seen || []).includes(key);
   const markSeen = async (key) => {
@@ -151,7 +153,7 @@ function Main({ profile, tab, setTab, patchProfile, onEditPlan }) {
   const screens = {
     home: <HomeScreen profile={profile} ch={ch} dt={dt} onEditPlan={editPlan} onOpenChallenges={() => setTab("challenges")} />,
     food: <FoodScreen profile={profile} dt={dt} />,
-    weight: <WeightScreen profile={profile} onEditPlan={editPlan} />,
+    workout: <WorkoutScreen profile={profile} wk={wk} dt={dt} onEditPlan={editPlan} />,
     challenges: <ChallengesScreen profile={profile} ch={ch} />,
     profile: <ProfileScreen profile={profile} ch={ch} onChange={patchProfile} onEditPlan={editPlan} planLocked={ch.planLocked} onReplayTour={replayTour} />,
   };

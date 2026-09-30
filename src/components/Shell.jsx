@@ -1,11 +1,11 @@
 import { AnimatePresence, motion } from "motion/react";
-import { House, UtensilsCrossed, Scale, Trophy, UserRound } from "lucide-react";
+import { House, UtensilsCrossed, Dumbbell, Trophy, UserRound } from "lucide-react";
 import Avatar from "./Avatar";
 
 export const TABS = [
   { id: "home", label: "Hoy", Icon: House },
   { id: "food", label: "Comida", Icon: UtensilsCrossed },
-  { id: "weight", label: "Peso", Icon: Scale },
+  { id: "workout", label: "Entreno", Icon: Dumbbell },
   { id: "challenges", label: "Retos", Icon: Trophy },
   { id: "profile", label: "Perfil", Icon: UserRound },
 ];

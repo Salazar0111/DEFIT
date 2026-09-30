@@ -4,7 +4,7 @@ import { avatarSrc } from "../lib/avatars";
 export const TAB_TIPS = {
   home: "Este es tu día. El anillo muestra cuántas calorías te quedan y yo cambio de ánimo según cómo vas. Tócame y te cuento más.",
   food: "Toca «Agregar comida» para registrar con foto, galería o texto. Con las flechas ves días anteriores y con la caneca borras algo.",
-  weight: "Pésate en ayunas y anótalo aquí. Si tu peso cambia 2 kg o más, te sugiero recalcular tu meta.",
+  workout: "Aquí ves tu semana y la sesión de hoy. Toca «Empezar» y registra cada serie. Si entrenaste otra cosa, usa «Hice otra cosa».",
   challenges: "Crea un reto con «Nuevo reto». En Amigos ves a tu gente, en Muro lo que pasa en el grupo y en Medallas tus premios.",
   profile: "Aquí cambias tu avatar y colores, activas notificaciones y Face ID, y ves cómo te ven tus amigos. «Ver tutorial» repite la guía.",
 };

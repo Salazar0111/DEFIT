@@ -4,6 +4,11 @@ import { avatarSrc } from "../lib/avatars";
 import { challengeTitle } from "./ChallengesScreen";
 import { fmt } from "../lib/plan";
 import { useFood } from "../lib/useFood";
+import { createPortal } from "react-dom";
+import Sheet from "../components/Sheet";
+import WeightScreen from "./WeightScreen";
+import { supabase } from "../lib/supabase";
+import { useEffect } from "react";
 import { useState } from "react";
 import { AnimatePresence } from "motion/react";
 import { dayMood, dayPhrase } from "../lib/buddy";
@@ -56,6 +61,8 @@ export default function HomeScreen({ profile, ch, dt, onEditPlan, onOpenChalleng
 
       {type && <DayTypePicker profile={profile} dt={dt} today={today} />}
 
+      <WeightCard profile={profile} onEditPlan={onEditPlan} />
+
       {ch && <ChallengeTeaser ch={ch} me={profile.id} onOpen={onOpenChallenges} />}
 
       <section className="glass" style={{ padding: "var(--sp-4) var(--sp-5)" }}>
@@ -102,6 +109,53 @@ function Buddy({ profile, mood, eaten, target }) {
 
 const GOAL_TEXT = { lose: "Bajar peso", recomp: "Recomposición", maintain: "Mantener", gain_clean: "Ganar peso limpio", gain_fast: "Ganar peso más rápido" };
 const goalText = (p) => GOAL_TEXT[p.goal] || (p.deficit > 0 ? `Bajar peso (−${fmt(p.deficit)} kcal)` : "Mantener");
+
+// Peso: registro de un toque y acceso al historial.
+function WeightCard({ profile, onEditPlan }) {
+  const demo = profile.id === "demo";
+  const [latest, setLatest] = useState(demo ? 92.4 : null);
+  const [value, setValue] = useState("");
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const today = dayKey(new Date(), profile.timezone);
+
+  useEffect(() => {
+    if (demo) return;
+    supabase.from("weight_logs").select("weight_kg, day").order("day", { ascending: false }).limit(1)
+      .then(({ data }) => setLatest(data?.[0]?.weight_kg ?? profile.weight_kg));
+  }, [demo, profile.weight_kg]);
+
+  const save = async (e) => {
+    e.preventDefault();
+    const w = Number(String(value).replace(",", "."));
+    if (!(w >= 30 && w <= 300)) return;
+    setSaving(true);
+    if (!demo) await supabase.from("weight_logs").upsert({ user_id: profile.id, day: today, weight_kg: w }, { onConflict: "user_id,day" });
+    setLatest(w); setValue(""); setSaving(false);
+  };
+
+  return (
+    <section className="glass" style={{ padding: "var(--sp-4) var(--sp-5)", display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+        <p className="eyebrow">Tu peso</p>
+        <button className="btn btn-text" style={{ minHeight: 32, fontSize: "var(--t-caption)" }} onClick={() => setOpen(true)}>Ver historial</button>
+      </div>
+      <form onSubmit={save} style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", gap: "var(--sp-3)", alignItems: "center" }}>
+        <p className="num" style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-0.03em" }}>
+          {latest ? Number(latest).toLocaleString("es-CO", { maximumFractionDigits: 1 }) : "–"}<span className="muted" style={{ fontSize: 16 }}> kg</span>
+        </p>
+        <div className="field"><input aria-label="Peso de hoy" type="number" inputMode="decimal" step="0.1" placeholder="Hoy" value={value} onChange={(e) => setValue(e.target.value)} style={{ height: 44 }} /></div>
+        <button className="btn btn-glass" style={{ minHeight: 44 }} disabled={saving || !value}>Guardar</button>
+      </form>
+      {createPortal(
+        <Sheet open={open} onClose={() => setOpen(false)} title="Historial de peso">
+          {open && <WeightScreen profile={profile} onEditPlan={() => { setOpen(false); onEditPlan(); }} />}
+        </Sheet>,
+        document.body
+      )}
+    </section>
+  );
+}
 
 // Tipo de día de hoy: descanso, entreno o pierna. Cambia la meta del día al instante.
 function DayTypePicker({ profile, dt, today }) {
