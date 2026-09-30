@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { Crown, Plus, Swords, Check, X, Lock, HandHeart, Zap, Flag, Trophy, Handshake, Medal as MedalIcon, CircleX, FlagOff, Ban } from "lucide-react";
@@ -24,6 +24,7 @@ export default function ChallengesScreen({ profile, ch }) {
   const [creating, setCreating] = useState(false);
   const [openMedal, setOpenMedal] = useState(null);
   const [person, setPerson] = useState(null);
+  const [preset, setPreset] = useState([]);
   const me = profile.id;
   const openPerson = (uid) => { const p = ch.people[uid]; if (p) setPerson(p); };
 
@@ -35,10 +36,15 @@ export default function ChallengesScreen({ profile, ch }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-4)" }}>
       <Segmented value={view} onChange={setView} layoutId="ch-view"
-        options={[{ id: "challenges", label: "Retos" }, { id: "activity", label: "Actividad" }, { id: "medals", label: "Medallas" }]} />
+        options={[{ id: "challenges", label: "Retos" }, { id: "friends", label: "Amigos" }, { id: "activity", label: "Muro" }, { id: "medals", label: "Medallas" }]} />
 
       <AnimatePresence mode="wait" initial={false}>
-        {view === "activity" ? (
+        {view === "friends" ? (
+          <motion.div key="f" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.25, ease }}>
+            <FriendsList ch={ch} me={me} onOpenPerson={openPerson} onChallenge={(id) => { setPreset([id]); setCreating(true); }} />
+          </motion.div>
+        ) : view === "activity" ? (
           <motion.div key="a" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.25, ease }}>
             <ActivityFeed ch={ch} me={me} onOpenPerson={openPerson} />
@@ -93,7 +99,7 @@ export default function ChallengesScreen({ profile, ch }) {
       {createPortal(
         <>
           <AnimatePresence>
-            {view === "challenges" && (
+            {(view === "challenges" || view === "friends") && (
               <motion.button className="btn btn-primary" style={styles.fab} onClick={() => setCreating(true)}
                 initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.8, opacity: 0 }}
                 whileTap={{ scale: 0.94 }} transition={{ type: "spring", stiffness: 380, damping: 24 }}>
@@ -101,8 +107,8 @@ export default function ChallengesScreen({ profile, ch }) {
               </motion.button>
             )}
           </AnimatePresence>
-          <Sheet open={creating} onClose={() => setCreating(false)} title="Nuevo reto">
-            <NewChallenge ch={ch} profile={profile} onDone={() => setCreating(false)} />
+          <Sheet open={creating} onClose={() => { setCreating(false); setPreset([]); }} title="Nuevo reto">
+            {creating && <NewChallenge ch={ch} profile={profile} initial={preset} onDone={() => { setCreating(false); setPreset([]); }} />}
           </Sheet>
           <Sheet open={!!person} onClose={() => setPerson(null)} title="Perfil">
             {person && <PersonSheetContent person={person} ch={ch} me={me} />}
@@ -413,6 +419,52 @@ function FinishedRow({ c, me }) {
   );
 }
 
+// ─── Amigos ─────────────────────────────────────────────────────────────────
+function FriendsList({ ch, me, onOpenPerson, onChallenge }) {
+  const [stats, setStats] = useState({});
+  useEffect(() => {
+    let alive = true;
+    ch.friends.forEach((f) => ch.stats(f.id).then((s) => alive && s && setStats((x) => ({ ...x, [f.id]: s }))));
+    return () => { alive = false; };
+  }, [ch.friends.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!ch.friends.length) {
+    return (
+      <section className="glass" style={{ padding: "var(--sp-6) var(--sp-5)", display: "flex", flexDirection: "column", gap: "var(--sp-2)" }}>
+        <h2>Aún no tienes amigos aquí</h2>
+        <p className="muted">Cuando alguien que invites complete su registro, aparecerá en esta lista.</p>
+      </section>
+    );
+  }
+  return (
+    <section className="glass" style={{ padding: "var(--sp-2) var(--sp-4)" }}>
+      {ch.friends.map((f, i) => {
+        const s = stats[f.id];
+        const active = ch.activeWith(f.id);
+        return (
+          <div key={f.id} style={{ display: "flex", alignItems: "center", gap: "var(--sp-3)", padding: "14px 0", borderTop: i ? "1px solid var(--hairline)" : "none" }}>
+            <button onClick={() => onOpenPerson(f.id)} style={{ display: "flex", alignItems: "center", gap: "var(--sp-3)", flex: 1, minWidth: 0, textAlign: "left", color: "var(--text)" }}>
+              <img src={avatarSrc(f.avatar)} alt="" style={{ width: 52, height: 52, borderRadius: "50%", flexShrink: 0 }} />
+              <div style={{ minWidth: 0 }}>
+                <p style={{ fontWeight: 700 }}>{f.name}</p>
+                <p className="caption">
+                  {s ? `Racha ${s.current_streak} ${s.current_streak === 1 ? "día" : "días"} · ${s.challenges_won} ${s.challenges_won === 1 ? "reto ganado" : "retos ganados"}` : "…"}
+                </p>
+                {active && <p className="caption" style={{ color: "var(--accent)", fontWeight: 700 }}>Reto en curso</p>}
+              </div>
+            </button>
+            {!active && (
+              <button className="btn btn-glass" style={{ minHeight: 38, padding: "0 14px", fontSize: "var(--t-caption)" }} onClick={() => onChallenge(f.id)}>
+                <Swords size={15} strokeWidth={2} /> Retar
+              </button>
+            )}
+          </div>
+        );
+      })}
+    </section>
+  );
+}
+
 // ─── Muro de actividad ──────────────────────────────────────────────────────
 const since = (iso) => {
   const m = Math.round((Date.now() - new Date(iso)) / 60000);
@@ -494,8 +546,8 @@ function ActivityFeed({ ch, me, onOpenPerson }) {
 // ─── Crear reto ────────────────────────────────────────────────────────────
 const LENGTHS = { duration: [7, 14, 30], first_to: [5, 10, 20] };
 
-function NewChallenge({ ch, profile, onDone }) {
-  const [picked, setPicked] = useState([]);
+function NewChallenge({ ch, profile, onDone, initial = [] }) {
+  const [picked, setPicked] = useState(initial);
   const [mode, setMode] = useState("duration");
   const [length, setLength] = useState(7);
   const [busy, setBusy] = useState(false);

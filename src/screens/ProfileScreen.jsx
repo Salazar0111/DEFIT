@@ -1,16 +1,19 @@
 import { useState } from "react";
 import { motion } from "motion/react";
-import { Check, Lock, LogOut, SlidersHorizontal } from "lucide-react";
+import { Check, Eye, Lock, LogOut, SlidersHorizontal } from "lucide-react";
+import { createPortal } from "react-dom";
+import Sheet from "../components/Sheet";
 import { supabase } from "../lib/supabase";
 import { AVATARS, avatarSrc } from "../lib/avatars";
 import { PALETTES } from "../lib/palettes";
 import Reminders from "../components/Reminders";
-import { PersonStats } from "../components/PersonCard";
+import { PersonStats, PersonSheetContent } from "../components/PersonCard";
 import InviteFriends from "../components/InviteFriends";
 import PasskeySettings from "../components/PasskeySettings";
 
 export default function ProfileScreen({ profile, ch, onChange, onEditPlan, planLocked }) {
   const [saving, setSaving] = useState(false);
+  const [preview, setPreview] = useState(false);
 
   const save = async (patch) => {
     onChange(patch); // optimista: la UI cambia al instante
@@ -25,7 +28,12 @@ export default function ProfileScreen({ profile, ch, onChange, onEditPlan, planL
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-4)" }}>
       {ch && (
         <section className="glass" style={styles.section}>
-          <h2>Tus logros</h2>
+          <div style={styles.head}>
+            <h2>Tus logros</h2>
+            <button className="btn btn-glass" style={{ minHeight: 36, padding: "0 14px", fontSize: "var(--t-caption)" }} onClick={() => setPreview(true)}>
+              <Eye size={15} strokeWidth={2} /> Cómo me ven
+            </button>
+          </div>
           <PersonStats uid={profile.id} ch={ch} />
         </section>
       )}
@@ -98,6 +106,13 @@ export default function ProfileScreen({ profile, ch, onChange, onEditPlan, planL
           : <><SlidersHorizontal size={18} strokeWidth={1.8} /> Ajustar mi plan</>}
       </button>
 
+      {ch && createPortal(
+        <Sheet open={preview} onClose={() => setPreview(false)} title="Tu perfil público">
+          {preview && <PersonSheetContent person={profile} ch={ch} me={profile.id} preview />}
+        </Sheet>,
+        document.body
+      )}
+
       <button className="btn btn-glass btn-block" onClick={() => supabase.auth.signOut()}>
         <LogOut size={18} strokeWidth={1.8} /> Cerrar sesión
       </button>
@@ -107,7 +122,7 @@ export default function ProfileScreen({ profile, ch, onChange, onEditPlan, planL
 
 const styles = {
   section: { padding: "var(--sp-5)", display: "flex", flexDirection: "column", gap: "var(--sp-4)" },
-  head: { display: "flex", justifyContent: "space-between", alignItems: "baseline" },
+  head: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "var(--sp-2)" },
   avatarGrid: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "var(--sp-4)" },
   avatarBtn: { aspectRatio: "1", borderRadius: "50%", padding: 0 },
   paletteRow: {

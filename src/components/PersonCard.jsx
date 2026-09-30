@@ -72,9 +72,9 @@ function Stat({ Icon, value, label }) {
 }
 
 // Contenido de la hoja al tocar el avatar de otra persona.
-export function PersonSheetContent({ person, ch, me }) {
-  const isMe = person.id === me;
-  const canPoke = !isMe && ch.activeWith(person.id);
+export function PersonSheetContent({ person, ch, me, preview = false }) {
+  const isMe = person.id === me && !preview;
+  const canPoke = !isMe && !preview && ch.activeWith(person.id);
   const [sent, setSent] = useState(null);
   const [error, setError] = useState("");
 
@@ -94,6 +94,7 @@ export function PersonSheetContent({ person, ch, me }) {
           style={{ width: 88, height: 88, borderRadius: "50%", boxShadow: "0 0 0 1px var(--hairline)" }} />
         <div>
           <h1>{isMe ? "Tú" : person.name}</h1>
+          {preview && <p className="caption">Así te ven tus amigos</p>}
           {canPoke && <p className="caption">Tienen un reto activo</p>}
         </div>
       </div>
