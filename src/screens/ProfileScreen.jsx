@@ -12,7 +12,6 @@ import Reminders from "../components/Reminders";
 import PhotoTile from "../components/PhotoTile";
 import FeedbackSettings from "../components/FeedbackSettings";
 import { PersonStats, PersonSheetContent } from "../components/PersonCard";
-import InviteFriends from "../components/InviteFriends";
 import PasskeySettings from "../components/PasskeySettings";
 
 export default function ProfileScreen({ profile, ch, onChange, onEditPlan, planLocked, onReplayTour }) {
@@ -116,8 +115,6 @@ export default function ProfileScreen({ profile, ch, onChange, onEditPlan, planL
           Cómo se estiman tus calorías
         </button>
       </section>
-
-      <InviteFriends profile={profile} />
 
       <section className="glass" style={{ padding: 0, overflow: "hidden" }}>
         <button onClick={() => setSettings((o) => !o)} aria-expanded={settings}

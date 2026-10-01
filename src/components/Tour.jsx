@@ -22,7 +22,7 @@ const SLIDES = [
   {
     mood: "happy", Icon: Swords,
     title: () => "Reta a tus amigos",
-    text: "En Retos desafía a uno o varios amigos: gana quien cumpla más días. Si empatan, gana quien estuvo más cerca de su meta. Toca a tu rival para animarlo o picarlo.",
+    text: "Agrega amigos con su correo en Social; cuando acepten, desafía en Retos a uno o varios: gana quien cumpla más días. Si empatan, gana quien estuvo más cerca de su meta. Toca a tu rival para animarlo o picarlo.",
   },
   {
     mood: "party", Icon: Flame,

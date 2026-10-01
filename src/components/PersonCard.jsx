@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Flame, Trophy, Target, Medal as MedalIcon, HandHeart, Zap } from "lucide-react";
 import Medal from "./Medal";
+import { Wall } from "./Wall";
 import { avatarSrc } from "../lib/avatars";
 import { MEDALS } from "../lib/medals";
 
@@ -72,11 +73,18 @@ function Stat({ Icon, value, label }) {
 }
 
 // Contenido de la hoja al tocar el avatar de otra persona.
-export function PersonSheetContent({ person, ch, me, preview = false }) {
+export function PersonSheetContent({ person, ch, me, preview = false, onRemoved }) {
   const isMe = person.id === me && !preview;
   const canPoke = !isMe && !preview && ch.activeWith(person.id);
   const [sent, setSent] = useState(null);
   const [error, setError] = useState("");
+  const [confirmRemove, setConfirmRemove] = useState(false);
+
+  const remove = async () => {
+    setError("");
+    try { await ch.removeFriend(person.id); onRemoved?.(); }
+    catch (e) { setError(e.message); setConfirmRemove(false); }
+  };
 
   const poke = async (kind) => {
     setError("");
@@ -121,6 +129,26 @@ export function PersonSheetContent({ person, ch, me, preview = false }) {
       )}
 
       <PersonStats uid={person.id} ch={ch} />
+      <Wall uid={person.id} ch={ch} me={me} />
+
+      {!isMe && !preview && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}>
+          {!confirmRemove ? (
+            <button className="btn btn-text" style={{ minHeight: 36, padding: 0, color: "var(--text-2)", fontSize: "var(--t-small)" }} onClick={() => setConfirmRemove(true)}>
+              Dejar de ser amigos
+            </button>
+          ) : (
+            <>
+              <p className="caption">Dejarán de ver sus perfiles y no podrán retarse. Puedes volver a enviar una solicitud después.</p>
+              <div style={{ display: "flex", gap: "var(--sp-2)" }}>
+                <button className="btn btn-glass" style={{ minHeight: 38, padding: "0 16px", color: "var(--danger)" }} onClick={remove}>Sí, quitar</button>
+                <button className="btn btn-text" style={{ minHeight: 38 }} onClick={() => setConfirmRemove(false)}>Cancelar</button>
+              </div>
+            </>
+          )}
+          {error && !canPoke && <p role="alert" style={{ color: "var(--danger)", fontWeight: 700, fontSize: "var(--t-small)" }}>{error}</p>}
+        </div>
+      )}
     </div>
   );
 }

@@ -38,6 +38,9 @@ const ERRORS = {
   ALREADY_REQUESTED: "Ya hay una propuesta de cancelar pendiente.",
   NO_REQUEST: "La propuesta ya no está vigente.",
   NO_ACTIVE_CHALLENGE: "Solo puedes empujar a alguien con quien tengas un reto activo.",
+  NOT_FRIENDS: "Solo puedes hacer eso con tus amigos.",
+  ACTIVE_CHALLENGE: "No puedes quitar a alguien con quien tienes un reto en curso.",
+  BAD_EMAIL: "Ese correo no parece válido.",
 };
 const friendly = (e) => ERRORS[Object.keys(ERRORS).find((k) => e?.message?.includes(k))] || "Algo falló. Intenta de nuevo.";
 
@@ -62,16 +65,16 @@ function withProgress(ch, totals, today) {
 export function useChallenges(profile) {
   const demo = profile.id === "demo";
   const today = dayKey(new Date(), profile.timezone);
-  const [state, setState] = useState({ loading: true, challenges: [], friends: [], medals: [], activity: [], pokes: [], people: {} });
+  const [state, setState] = useState({ loading: true, challenges: [], friends: [], requests: [], medals: [], pokes: [], people: {} });
   const timer = useRef(null);
 
   const load = useCallback(async () => {
     if (demo) { setState({ loading: false, ...demoData(profile, today) }); return; }
-    const [{ data: mine }, { data: friends }, { data: medals }, { data: activity }, { data: pokes }] = await Promise.all([
+    const [{ data: mine }, { data: friends }, { data: medals }, { data: requests }, { data: pokes }] = await Promise.all([
       supabase.from("challenge_members").select("challenge_id").eq("user_id", profile.id),
       supabase.from("profiles").select("id, name, avatar, onboarded").neq("id", profile.id),
       supabase.from("medals").select("*").eq("user_id", profile.id).order("earned_at", { ascending: false }),
-      supabase.from("activity").select("*").order("created_at", { ascending: false }).limit(40),
+      supabase.rpc("my_friend_requests"),
       supabase.from("pokes").select("*").eq("to_user", profile.id).eq("seen", false).order("created_at"),
     ]);
     const ids = (mine || []).map((m) => m.challenge_id);
@@ -91,7 +94,7 @@ export function useChallenges(profile) {
     setState({
       loading: false, challenges, people,
       friends: (friends || []).filter((f) => f.onboarded),
-      medals: medals || [], activity: activity || [], pokes: pokes || [],
+      medals: medals || [], requests: requests || [], pokes: pokes || [],
     });
   }, [demo, profile, today]);
 
@@ -106,7 +109,7 @@ export function useChallenges(profile) {
       .on("postgres_changes", { event: "*", schema: "public", table: "challenges" }, reload)
       .on("postgres_changes", { event: "*", schema: "public", table: "challenge_members" }, reload)
       .on("postgres_changes", { event: "*", schema: "public", table: "medals", filter: `user_id=eq.${profile.id}` }, reload)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "activity" }, reload)
+      .on("postgres_changes", { event: "*", schema: "public", table: "friendships" }, reload)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "pokes", filter: `to_user=eq.${profile.id}` }, reload)
       .subscribe();
     return () => { clearTimeout(timer.current); supabase.removeChannel(ch); };
@@ -161,6 +164,47 @@ export function useChallenges(profile) {
     return data || [];
   };
 
+  // Logros recientes de una persona (retos ganados, medallas y récords): el "muro" de su perfil.
+  const wallOf = async (uid) => {
+    if (demo) return state.wall || [];
+    const { data } = await supabase.from("activity").select("*").eq("actor", uid)
+      .in("kind", ["challenge_won", "medal", "pr"]).order("created_at", { ascending: false }).limit(15);
+    return data || [];
+  };
+
+  // Amistades.
+  const sendFriendRequest = async (email) => {
+    if (demo) {
+      const e = email.trim().toLowerCase();
+      setState((s) => ({ ...s, requests: [{ id: Date.now(), direction: "out", user_id: null, name: null, avatar: null, email: e }, ...s.requests] }));
+      return "invited";
+    }
+    const { data, error } = await supabase.rpc("send_friend_request", { friend_email: email });
+    if (error) throw new Error(friendly(error));
+    await load();
+    return data;
+  };
+  const respondFriend = async (id, accept) => {
+    if (demo) {
+      setState((s) => {
+        const r = s.requests.find((x) => x.id === id);
+        return { ...s, requests: s.requests.filter((x) => x.id !== id),
+          friends: accept && r ? [...s.friends, { id: r.user_id, name: r.name, avatar: r.avatar, onboarded: true }] : s.friends,
+          people: accept && r ? { ...s.people, [r.user_id]: { id: r.user_id, name: r.name, avatar: r.avatar } } : s.people };
+      });
+      return;
+    }
+    const { error } = await supabase.rpc("respond_friend_request", { req: id, accept });
+    if (error) throw new Error(friendly(error));
+    await load();
+  };
+  const removeFriend = async (uid) => {
+    if (demo) { setState((s) => ({ ...s, friends: s.friends.filter((f) => f.id !== uid) })); return; }
+    const { error } = await supabase.rpc("remove_friend", { other: uid });
+    if (error) throw new Error(friendly(error));
+    await load();
+  };
+
   // ¿Tengo un reto activo con esta persona? (para permitir empujones)
   const activeWith = (uid) => state.challenges.some((c) => c.status === "active" &&
     c.members.some((m) => m.user_id === uid && m.status === "accepted"));
@@ -180,6 +224,10 @@ export function useChallenges(profile) {
     stats,
     medalsOf,
     activeWith,
+    wallOf,
+    sendFriendRequest,
+    respondFriend,
+    removeFriend,
     sendPoke,
     today,
     planLocked,
@@ -248,18 +296,20 @@ function demoData(profile, today) {
     { id: 6, kind: "challenge_done", period_key: "3", seen: true },
   ];
   const ago = (min) => new Date(Date.now() - min * 60000).toISOString();
-  const activity = [
-    { id: 5, kind: "poke", actor: "c", targets: [profile.id], data: { kind: "tease" }, created_at: ago(12) },
-    { id: 4, kind: "challenge_invite", actor: "c", targets: [profile.id], data: { mode: "first_to", length: 10 }, created_at: ago(90) },
-    { id: 3, kind: "medal", actor: profile.id, targets: [], data: { medal: "streak_7" }, created_at: ago(60 * 9) },
-    { id: 2, kind: "challenge_accept", actor: "c", targets: [profile.id], data: { mode: "duration", length: 7 }, created_at: ago(60 * 80) },
+  const wall = [
+    { id: 3, kind: "pr", actor: profile.id, targets: [], data: { exercise: "Press de banca", kg: 65, reps: 8 }, created_at: ago(60 * 5) },
+    { id: 2, kind: "medal", actor: profile.id, targets: [], data: { medal: "streak_7" }, created_at: ago(60 * 9) },
     { id: 1, kind: "challenge_won", actor: profile.id, targets: ["c"], data: { days: 6, mode: "duration", length: 7 }, created_at: ago(60 * 24 * 14) },
+  ];
+  const requests = [
+    { id: 101, direction: "in", user_id: "m", name: "Mateo", avatar: "a4", email: null, created_at: ago(30) },
+    { id: 102, direction: "out", user_id: null, name: null, avatar: null, email: "hassani@correo.com", created_at: ago(60 * 20) },
   ];
   const pokes = showMoments ? [
     { id: 1, from_user: "c", to_user: profile.id, kind: "cheer", created_at: ago(20) },
     { id: 2, from_user: "c", to_user: profile.id, kind: "tease", created_at: ago(12) },
   ] : [];
-  return { challenges, friends: [claudia, ...extra], medals, activity, pokes, people };
+  return { challenges, friends: [claudia, ...extra], requests, wall, medals, pokes, people };
 }
 
 function demoStats(me) {
