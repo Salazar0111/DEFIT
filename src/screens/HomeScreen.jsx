@@ -2,7 +2,7 @@ import { motion } from "motion/react";
 import { ChevronRight, Lock, SlidersHorizontal, Swords } from "lucide-react";
 import { avatarSrc } from "../lib/avatars";
 import { challengeTitle } from "./ChallengesScreen";
-import { DAY_KEY_LABELS, DAY_KEY_ORDER, fmt } from "../lib/plan";
+import { DAY_KEY_LABELS, DAY_KEY_ORDER, cardioEquivalent, fmt } from "../lib/plan";
 import { useFood } from "../lib/useFood";
 import { createPortal } from "react-dom";
 import Sheet from "../components/Sheet";
@@ -163,10 +163,17 @@ function DayTypePicker({ profile, dt, today }) {
   const [error, setError] = useState("");
   const { type, target, adjust, est, watch } = dt.info(today);
   const [kcal, setKcal] = useState("");
+  const [mins, setMins] = useState("");
+  const hasCardio = ["cardio", "cw", "cwl"].includes(type);
+  // Con reloj manda el reloj; sin reloj, los minutos de cardio que hiciste ajustan el día.
   const saveWatch = async (e) => {
     e.preventDefault();
     setError("");
-    try { await dt.setWatchKcal(today, kcal); setKcal(""); fx("success"); } catch (err) { setError(err.message); }
+    try {
+      if (Number(kcal) > 0) await dt.setWatchKcal(today, kcal);
+      else if (Number(mins) > 0) await dt.setWatchKcal(today, cardioEquivalent(profile, type, mins));
+      setKcal(""); setMins(""); fx("success");
+    } catch (err) { setError(err.message); }
   };
   const options = DAY_KEY_ORDER.filter((k) => k === "rest" || profile.targets?.[k] != null).map((id) => ({ id, label: DAY_KEY_LABELS[id] }));
   const pick = async (id) => {
@@ -201,15 +208,22 @@ function DayTypePicker({ profile, dt, today }) {
       </div>
       {est > 0 && (
         <form onSubmit={saveWatch} style={{ display: "flex", flexDirection: "column", gap: "var(--sp-2)", paddingTop: "var(--sp-2)", borderTop: "1px solid var(--hairline)" }}>
+          {hasCardio && (
+            <>
+              <label htmlFor="cardio-mins" className="caption" style={{ fontWeight: 700 }}>Minutos de cardio que hiciste</label>
+              <div className="field"><input id="cardio-mins" type="number" inputMode="numeric" min="0" max="600" placeholder={`Planeado: ${profile.session_min || 45}`}
+                value={mins} onChange={(e) => setMins(e.target.value)} style={{ height: 44 }} /></div>
+            </>
+          )}
           <label htmlFor="watch-kcal" className="caption" style={{ fontWeight: 700 }}>Calorías del entreno según tu reloj (opcional)</label>
           <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "var(--sp-2)" }}>
             <div className="field"><input id="watch-kcal" type="number" inputMode="numeric" min="0" max="5000" placeholder={watch ? String(watch) : `Estimado: ${fmt(est)}`}
               value={kcal} onChange={(e) => setKcal(e.target.value)} style={{ height: 44 }} /></div>
-            <button className="btn btn-glass" style={{ minHeight: 44 }} disabled={!kcal}>Guardar</button>
+            <button className="btn btn-glass" style={{ minHeight: 44 }} disabled={!kcal && !mins}>Guardar</button>
           </div>
           {watch > 0 && (
             <p className="caption num">
-              Reloj: {fmt(watch)} kcal · estimado: {fmt(est)} · {adjust === 0 ? "sin ajuste" : `${adjust > 0 ? "+" : "−"}${fmt(Math.abs(adjust))} a tu meta`}
+              Registrado: {fmt(watch)} kcal · estimado: {fmt(est)} · {adjust === 0 ? "sin ajuste" : `${adjust > 0 ? "+" : "−"}${fmt(Math.abs(adjust))} a tu meta`}
               {" "}<button type="button" onClick={() => dt.setWatchKcal(today, 0).catch(() => {})} style={{ textDecoration: "underline", color: "var(--text)" }}>Quitar</button>
             </p>
           )}

@@ -275,6 +275,20 @@ export function watchAdjust(est, watch) {
   return Math.max(-est, Math.min(watch - est, Math.floor(est * 0.5)));
 }
 
+// Cardio real del día: kcal equivalentes del día completo según los minutos que hiciste.
+// Cardio solo: reemplaza la estimación. Cardio y pesas: se cambia la mitad de cardio estimada por la real.
+export function cardioEquivalent(profile, key, minutes) {
+  const m = Number(minutes) || 0;
+  const est = profile.burns?.[key] || 0;
+  if (m <= 0 || est <= 0) return 0;
+  const w = Number(profile.weight_kg) || 0;
+  const intensity = profile.intensity || "moderate";
+  const actual = trainKcal("cardio", intensity, m, w);
+  if (key === "cardio") return actual;
+  const planned = trainKcal("cardio", intensity, (profile.session_min || defaultMinutes) / 2, w);
+  return Math.max(0, est - planned + actual);
+}
+
 // Meta de un día: cambio puntual (si hay) o calendario, más el ajuste por reloj; las cuentas con plan v1 tienen una sola meta.
 export function dayTarget(profile, dateStr, override, watch) {
   if (!profile.targets || (profile.plan_version || 1) < 2) return { type: null, target: profile.target_kcal || 0, adjust: 0, est: 0 };

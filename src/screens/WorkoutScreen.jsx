@@ -8,7 +8,7 @@ import { avatarSrc } from "../lib/avatars";
 import Sheet from "../components/Sheet";
 import WorkoutSession from "../components/WorkoutSession";
 import RoutineEditor from "../components/RoutineEditor";
-import { WEEKDAYS } from "../lib/plan";
+import { WEEKDAYS, cardioEquivalent } from "../lib/plan";
 import { buildRoutine, buildRoutineFromPlan, exerciseById, templatesFor } from "../lib/exercises";
 
 const ease = [0.16, 1, 0.3, 1];
@@ -21,6 +21,7 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan }) {
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
   const [cardioKcal, setCardioKcal] = useState("");
+  const [cardioMinutes, setCardioMinutes] = useState("");
   const [last, setLast] = useState({});
   const [best, setBest] = useState({});
   const [newRecords, setNewRecords] = useState(null);
@@ -86,9 +87,12 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan }) {
     setError("");
     try {
       const k = Number(cardioKcal) || 0;
-      await wk.finish({ name: s.name, leg: false, durationS: (profile.session_min || 45) * 60, sets: [], watchKcal: k });
+      const min = Number(cardioMinutes) || profile.session_min || 45;
+      await wk.finish({ name: s.name, leg: false, durationS: min * 60, sets: [], watchKcal: k, cardioMin: min });
+      // Con reloj, manda el reloj; sin reloj, los minutos que hiciste.
       if (k > 0) await dt.setWatchKcal(today, (dt.watch?.[today] || 0) + k).catch(() => {});
-      setCardioKcal("");
+      else await dt.setWatchKcal(today, cardioEquivalent(profile, s.key || "cardio", min)).catch(() => {});
+      setCardioKcal(""); setCardioMinutes("");
       await dt.setType(today, s.key || "cardio").catch(() => {});
       setSaved(true); setTimeout(() => setSaved(false), 4000);
     } catch (e) { setError(e.message); }
@@ -100,12 +104,13 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan }) {
     setLast(r.last); setBest(r.best);
     setSession(s);
   };
-  const finishSession = async ({ sets, durationS, records, watchKcal }) => {
+  const finishSession = async ({ sets, durationS, records, watchKcal, cardioMin }) => {
     setError("");
     try {
-      await wk.finish({ name: session.name, leg: !!session.leg, durationS, sets, watchKcal });
-      // El reloj del día suma lo de todas las sesiones de hoy.
+      await wk.finish({ name: session.name, leg: !!session.leg, durationS, sets, watchKcal, cardioMin });
+      // El reloj del día suma lo de todas las sesiones de hoy; sin reloj, se usan los minutos de cardio.
       if (watchKcal > 0) await dt.setWatchKcal(today, (dt.watch?.[today] || 0) + watchKcal).catch(() => {});
+      else if (cardioMin > 0) await dt.setWatchKcal(today, cardioEquivalent(profile, session.key, cardioMin)).catch(() => {});
       // El día queda como entreno o pierna, y su meta se ajusta sola.
       await dt.setType(today, session.key || (session.leg ? "leg" : "train")).catch(() => {});
       setSession(null);
@@ -177,7 +182,11 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan }) {
             </>
           ) : (
             <>
-              <p className="muted" style={{ display: "flex", alignItems: "center", gap: 8 }}><HeartPulse size={18} strokeWidth={1.8} /> {profile.session_min || 45} minutos de cardio.</p>
+              <p className="muted" style={{ display: "flex", alignItems: "center", gap: 8 }}><HeartPulse size={18} strokeWidth={1.8} /> Planeado: {profile.session_min || 45} minutos de cardio.</p>
+              <div className="field">
+                <label htmlFor="cardio-min">¿Cuántos minutos hiciste?</label>
+                <input id="cardio-min" type="number" inputMode="numeric" min="1" max="600" placeholder={String(profile.session_min || 45)} value={cardioMinutes} onChange={(e) => setCardioMinutes(e.target.value)} />
+              </div>
               <div className="field">
                 <label htmlFor="cardio-kcal">Calorías según tu reloj (opcional)</label>
                 <input id="cardio-kcal" type="number" inputMode="numeric" min="0" max="5000" placeholder="Ej: 400" value={cardioKcal} onChange={(e) => setCardioKcal(e.target.value)} />
