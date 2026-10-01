@@ -196,6 +196,22 @@ function Main({ profile, tab, setTab, patchProfile, onEditPlan }) {
   // Tras guardar la primera comida se ofrecen las notificaciones (una sola vez; si las deja para después, no se insiste).
   const [offerNotif, setOfferNotif] = useState(false);
   const [notifMsg, setNotifMsg] = useState("");
+  // Aviso diario de actividad (solo la fecha): permite saber cada cuánto vuelve la gente.
+  useEffect(() => {
+    if (profile.id === "demo") return;
+    const ping = () => {
+      const day = new Date().toLocaleDateString("en-CA", { timeZone: "America/Bogota" });
+      try { if (localStorage.getItem("defit.pinged") === `${profile.id}:${day}`) return; } catch { /* sigue */ }
+      supabase.rpc("touch_activity").then(({ error }) => {
+        if (!error) { try { localStorage.setItem("defit.pinged", `${profile.id}:${day}`); } catch { /* sin almacenamiento */ } }
+      });
+    };
+    ping();
+    const onVisible = () => { if (document.visibilityState === "visible") ping(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [profile.id]);
+
   // Quien aún no tiene usuario lo elige una vez por sesión (puede dejarlo para después).
   const [askUsername, setAskUsername] = useState(true);
   useEffect(() => {

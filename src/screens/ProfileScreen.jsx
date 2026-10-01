@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { BookOpen, Check, ChevronDown, Eye, Lock, LogOut, SlidersHorizontal } from "lucide-react";
+import { BookOpen, Check, ChevronDown, Eye, Lock, LogOut, ShieldCheck, SlidersHorizontal } from "lucide-react";
 import MethodExplainer from "../components/MethodExplainer";
 import UsernamePrompt from "../components/UsernamePrompt";
+import AdminPanel from "../components/AdminPanel";
 import { GOALS, computePlanV2, fmt } from "../lib/plan";
 import { createPortal } from "react-dom";
 import Sheet from "../components/Sheet";
@@ -21,6 +22,12 @@ export default function ProfileScreen({ profile, ch, onChange, onEditPlan, planL
   const [settings, setSettings] = useState(false);
   const [method, setMethod] = useState(false);
   const [editUser, setEditUser] = useState(false);
+  const [admin, setAdmin] = useState(false);       // ¿es administrador?
+  const [adminOpen, setAdminOpen] = useState(false);
+  useEffect(() => {
+    if (profile.id === "demo") { setAdmin(true); return; }
+    supabase.rpc("is_admin").then(({ data }) => setAdmin(!!data));
+  }, [profile.id]);
   const [planError, setPlanError] = useState("");
 
   const save = async (patch) => {
@@ -189,6 +196,19 @@ export default function ProfileScreen({ profile, ch, onChange, onEditPlan, planL
           )}
         </AnimatePresence>
       </section>
+
+      {admin && (
+        <button className="btn btn-glass btn-block" onClick={() => setAdminOpen(true)}>
+          <ShieldCheck size={18} strokeWidth={1.8} /> Panel de administración
+        </button>
+      )}
+
+      {createPortal(
+        <Sheet open={adminOpen} onClose={() => setAdminOpen(false)} title="Administración">
+          {adminOpen && <AdminPanel demo={profile.id === "demo"} />}
+        </Sheet>,
+        document.body
+      )}
 
       {createPortal(
         <UsernamePrompt key={profile.username || "new"} profile={profile} open={editUser} onClose={() => setEditUser(false)}

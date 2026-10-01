@@ -32,7 +32,7 @@ const SLIDES = [
   {
     mood: "sleepy", Icon: Bell,
     title: () => "No te pierdas nada",
-    text: "Te pediremos activar las notificaciones cuando registres tu primera comida, para avisarte de retos, empujones y resultados. En iPhone, abre DEFIT desde el ícono de tu pantalla de inicio.",
+    text: "Te pediremos activar las notificaciones cuando registres tu primera comida, para avisarte de retos, empujones y resultados. En iPhone, abre DEFIT desde el ícono de tu pantalla de inicio. Para saber cada cuánto se usa la app, el administrador ve solo los días en que la abres y cuántos análisis de IA haces, nunca lo que comes.",
   },
 ];
 

@@ -80,7 +80,7 @@ async function askModel(apiKey, content) {
   const text = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("");
   const parsed = parseFood(text);
   if (!parsed) console.error("analyze: JSON ilegible", data.stop_reason, text.slice(0, 300));
-  return { parsed };
+  return { parsed, usage: data.usage };
 }
 
 const num = (v, max) => Math.min(Math.max(Math.round(Number(v) * 10) / 10 || 0, 0), max);
@@ -113,9 +113,15 @@ export default async function handler(req, res) {
 
   try {
     // Un reintento por si la respuesta llegó ilegible o el servicio falló un instante.
-    let r = await askModel(apiKey, content).catch((e) => { console.error("analyze: fallo de red", e?.message); return { error: "net" }; });
-    if (!r.parsed && r.error !== "ai_status") {
-      r = await askModel(apiKey, content).catch((e) => { console.error("analyze: fallo de red", e?.message); return { error: "net" }; });
+    let tokensIn = 0, tokensOut = 0;
+    const ask = () => askModel(apiKey, content)
+      .then((x) => { tokensIn += x.usage?.input_tokens || 0; tokensOut += x.usage?.output_tokens || 0; return x; })
+      .catch((e) => { console.error("analyze: fallo de red", e?.message); return { error: "net" }; });
+    let r = await ask();
+    if (!r.parsed && r.error !== "ai_status") r = await ask();
+    // Consumo real de la IA, para el panel de administración (si falla, no afecta la respuesta).
+    if (tokensIn || tokensOut) {
+      await supabaseFetch("/rest/v1/rpc/record_ai_tokens", token, { method: "POST", body: JSON.stringify({ t_in: tokensIn, t_out: tokensOut }) }).catch(() => {});
     }
     if (r.error === "ai_status") return res.status(502).json({ error: "El servicio de IA no respondió bien. Intenta de nuevo." });
     const parsed = r.parsed;
