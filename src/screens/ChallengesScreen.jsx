@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
-import { Dumbbell, Crown, Plus, Swords, Check, X, Lock, HandHeart, Zap, Flag, Trophy, Handshake, Medal as MedalIcon, CircleX, FlagOff, Ban } from "lucide-react";
+import { Dumbbell, Crown, Plus, Swords, Check, X, Lock, HandHeart, Zap, Flag, Trophy, Handshake, Medal as MedalIcon, ChevronDown, CircleX, FlagOff, Ban } from "lucide-react";
 import { PersonSheetContent } from "../components/PersonCard";
 import Sheet from "../components/Sheet";
 import Medal from "../components/Medal";
@@ -36,18 +36,17 @@ export default function ChallengesScreen({ profile, ch }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-4)" }}>
       <Segmented value={view} onChange={setView} layoutId="ch-view"
-        options={[{ id: "challenges", label: "Retos" }, { id: "friends", label: "Amigos" }, { id: "activity", label: "Muro" }, { id: "medals", label: "Medallas" }]} />
+        options={[{ id: "challenges", label: "Retos" }, { id: "social", label: "Social" }, { id: "medals", label: "Medallas" }]} />
 
       <AnimatePresence mode="wait" initial={false}>
-        {view === "friends" ? (
+        {view === "social" ? (
           <motion.div key="f" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.25, ease }}>
-            <FriendsList ch={ch} me={me} onOpenPerson={openPerson} onChallenge={(id) => { setPreset([id]); setCreating(true); }} />
-          </motion.div>
-        ) : view === "activity" ? (
-          <motion.div key="a" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.25, ease }}>
-            <ActivityFeed ch={ch} me={me} onOpenPerson={openPerson} />
+            transition={{ duration: 0.25, ease }} style={{ display: "flex", flexDirection: "column", gap: "var(--sp-5)" }}>
+            <div><p className="eyebrow" style={{ marginBottom: "var(--sp-2)" }}>Amigos</p>
+              <FriendsList ch={ch} me={me} onOpenPerson={openPerson} onChallenge={(id) => { setPreset([id]); setCreating(true); }} /></div>
+            <div><p className="eyebrow" style={{ marginBottom: "var(--sp-2)" }}>Lo que pasa</p>
+              <ActivityFeed ch={ch} me={me} onOpenPerson={openPerson} /></div>
+            <div style={{ height: 64 }} aria-hidden="true" />
           </motion.div>
         ) : view === "challenges" ? (
           <motion.div key="c" initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 16 }}
@@ -99,7 +98,7 @@ export default function ChallengesScreen({ profile, ch }) {
       {createPortal(
         <>
           <AnimatePresence>
-            {(view === "challenges" || view === "friends") && (
+            {(view === "challenges" || view === "social") && (
               <motion.button className="btn btn-primary" style={styles.fab} onClick={() => setCreating(true)}
                 initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.8, opacity: 0 }}
                 whileTap={{ scale: 0.94 }} transition={{ type: "spring", stiffness: 380, damping: 24 }}>
@@ -553,6 +552,7 @@ function NewChallenge({ ch, profile, onDone, initial = [] }) {
   const [length, setLength] = useState(7);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [custom, setCustom] = useState(false);
 
   const toggle = (id) => setPicked((x) => (x.includes(id) ? x.filter((i) => i !== id) : [...x, id]));
   const submit = async () => {
@@ -586,7 +586,15 @@ function NewChallenge({ ch, profile, onDone, initial = [] }) {
         </div>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
+      <button className="btn btn-glass" style={{ justifyContent: "space-between" }} onClick={() => setCustom((o) => !o)} aria-expanded={custom}>
+        <span style={{ textAlign: "left" }}>
+          <span style={{ display: "block", fontWeight: 700 }}>{mode === "duration" ? "Por tiempo" : "El primero en llegar"} · {length} días</span>
+          <span className="caption">{custom ? "Ocultar opciones" : "Toca para personalizar"}</span>
+        </span>
+        <ChevronDown size={20} strokeWidth={1.8} style={{ transform: custom ? "rotate(180deg)" : "none", transition: "transform 250ms" }} />
+      </button>
+
+      {custom && <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
         <p className="eyebrow">Tipo de reto</p>
         <Segmented value={mode} layoutId="ch-mode" onChange={(m) => { setMode(m); setLength(LENGTHS[m][0]); }}
           options={[{ id: "duration", label: "Por tiempo" }, { id: "first_to", label: "El primero en llegar" }]} />
@@ -604,7 +612,7 @@ function NewChallenge({ ch, profile, onDone, initial = [] }) {
             </button>
           ))}
         </div>
-      </div>
+      </div>}
 
       <p className="caption" style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
         <Lock size={14} strokeWidth={2} style={{ flexShrink: 0, marginTop: 2 }} />

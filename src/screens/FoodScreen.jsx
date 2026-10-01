@@ -127,6 +127,7 @@ export default function FoodScreen({ profile, dt }) {
             <AddFood demo={profile.id === "demo"} onSave={async (entry) => {
               await add(entry);
               setAdding(false);
+              window.dispatchEvent(new Event("defit:meal-saved"));
               fx("success");
               // Tu personaje aparece y reacciona a la comida que acabas de guardar.
               setReaction({ ...foodReaction({ before: t.kcal, after: t.kcal + entry.kcal, target }), key: Date.now() });

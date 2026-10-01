@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { motion } from "motion/react";
-import { BookOpen, Check, Eye, Lock, LogOut, SlidersHorizontal } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { BookOpen, Check, ChevronDown, Eye, Lock, LogOut, SlidersHorizontal } from "lucide-react";
+import MethodExplainer from "../components/MethodExplainer";
+import { GOALS, computePlanV2, fmt } from "../lib/plan";
 import { createPortal } from "react-dom";
 import Sheet from "../components/Sheet";
 import { supabase } from "../lib/supabase";
@@ -16,6 +18,9 @@ import PasskeySettings from "../components/PasskeySettings";
 export default function ProfileScreen({ profile, ch, onChange, onEditPlan, planLocked, onReplayTour }) {
   const [saving, setSaving] = useState(false);
   const [preview, setPreview] = useState(false);
+  const [settings, setSettings] = useState(false);
+  const [method, setMethod] = useState(false);
+  const [planError, setPlanError] = useState("");
 
   const save = async (patch) => {
     onChange(patch); // optimista: la UI cambia al instante
@@ -24,6 +29,22 @@ export default function ProfileScreen({ profile, ch, onChange, onEditPlan, planL
     const { error } = await supabase.from("profiles").update(patch).eq("id", profile.id);
     setSaving(false);
     if (error) onChange({ avatar: profile.avatar, palette: profile.palette });
+  };
+
+  const v2 = (profile.plan_version || 1) >= 2;
+  const goalLabel = GOALS.find((g) => g.id === profile.goal)?.label || (profile.deficit > 0 ? "Bajar peso" : "Mantener");
+  const byDay = profile.target_mode !== "fixed";
+  const toggleMode = async () => {
+    setPlanError("");
+    const mode = byDay ? "fixed" : "by_day";
+    const plan = computePlanV2({ ...profile, target_mode: mode, deficit: profile.deficit || 0 });
+    if (!plan) return;
+    const patch = { target_mode: mode, targets: plan.targets, target_kcal: plan.target, burns: plan.burn };
+    if (profile.id !== "demo") {
+      const { error } = await supabase.from("profiles").update(patch).eq("id", profile.id);
+      if (error) { setPlanError(error.message.includes("PLAN_LOCKED") ? "No puedes cambiarlo durante un reto." : "No se pudo guardar. Intenta de nuevo."); return; }
+    }
+    onChange(patch);
   };
 
   return (
@@ -73,43 +94,94 @@ export default function ProfileScreen({ profile, ch, onChange, onEditPlan, planL
       </section>
 
       <section className="glass" style={styles.section}>
-        <h2>Paleta</h2>
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-2)" }}>
-          {PALETTES.map((p) => {
-            const active = p.id === profile.palette;
-            return (
-              <button key={p.id} onClick={() => save({ palette: p.id })} style={styles.paletteRow} aria-pressed={active}>
-                <span style={{ ...styles.swatch, background: p.bg }}>
-                  <span style={{ ...styles.swatchDot, background: p.accent }} />
-                </span>
-                <span style={{ flex: 1, textAlign: "left" }}>
-                  <span style={{ display: "block", fontWeight: 700 }}>{p.name}</span>
-                  <span className="caption">{p.hint}</span>
-                </span>
-                {active && (
-                  <motion.span layoutId="palette-check" style={styles.check}>
-                    <Check size={16} strokeWidth={2.4} />
-                  </motion.span>
-                )}
-              </button>
-            );
-          })}
+        <div style={styles.head}>
+          <h2>Tu plan</h2>
+          <button className="btn btn-glass" style={{ minHeight: 36, padding: "0 14px", fontSize: "var(--t-caption)" }} onClick={onEditPlan}>
+            {planLocked ? <Lock size={15} strokeWidth={1.8} /> : <SlidersHorizontal size={15} strokeWidth={1.8} />} {planLocked ? "Fijo en reto" : "Ajustar"}
+          </button>
         </div>
+        <div>
+          <PlanRow label="Objetivo" value={goalLabel} />
+          <PlanRow label="Meta promedio" value={`${fmt(profile.target_kcal || 0)} kcal`} />
+          <PlanRow label="Gasto promedio" value={`${fmt(profile.tdee || 0)} kcal`} />
+          {profile.protein_g > 0 && <PlanRow label="Proteína diaria" value={`${fmt(profile.protein_g)} g`} />}
+          <PlanRow label="Peso de partida" value={`${Number(profile.weight_kg).toLocaleString("es-CO")} kg`} last />
+        </div>
+        <button className="btn btn-text" style={{ minHeight: 36, fontSize: "var(--t-caption)", color: "var(--accent)", alignSelf: "flex-start", padding: 0 }} onClick={() => setMethod(true)}>
+          Cómo se estiman tus calorías
+        </button>
       </section>
 
       <InviteFriends profile={profile} />
 
-      <Reminders profile={profile} onChange={onChange} />
+      <section className="glass" style={{ padding: 0, overflow: "hidden" }}>
+        <button onClick={() => setSettings((o) => !o)} aria-expanded={settings}
+          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "var(--sp-4) var(--sp-5)", color: "var(--text)" }}>
+          <span style={{ fontSize: "var(--t-h2)", fontWeight: 700, letterSpacing: "-0.02em" }}>Ajustes</span>
+          <motion.span animate={{ rotate: settings ? 180 : 0 }} style={{ display: "grid" }}><ChevronDown size={22} strokeWidth={1.8} /></motion.span>
+        </button>
+        <AnimatePresence initial={false}>
+          {settings && (
+            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.28 }}
+              style={{ overflow: "hidden" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-4)", padding: "0 var(--sp-3) var(--sp-4)" }}>
+                <div className="glass" style={styles.section}>
+                  <h2>Colores</h2>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-2)" }}>
+                    {PALETTES.map((p) => {
+                      const active = p.id === profile.palette;
+                      return (
+                        <button key={p.id} onClick={() => save({ palette: p.id })} style={styles.paletteRow} aria-pressed={active}>
+                          <span style={{ ...styles.swatch, background: p.bg }}><span style={{ ...styles.swatchDot, background: p.accent }} /></span>
+                          <span style={{ flex: 1, textAlign: "left" }}>
+                            <span style={{ display: "block", fontWeight: 700 }}>{p.name}</span>
+                            <span className="caption">{p.hint}</span>
+                          </span>
+                          {active && (<motion.span layoutId="palette-check" style={styles.check}><Check size={16} strokeWidth={2.4} /></motion.span>)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
 
-      <FeedbackSettings />
+                {v2 && profile.trains && (
+                  <div className="glass" style={{ ...styles.section, gap: "var(--sp-2)" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-3)" }}>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontWeight: 700 }}>Meta distinta cada día</p>
+                        <p className="caption">Más calorías los días de entreno y menos en descanso, con el mismo total semanal.</p>
+                      </div>
+                      <button role="switch" aria-checked={byDay} aria-label="Meta distinta cada día" onClick={toggleMode}
+                        style={{ width: 52, height: 30, borderRadius: 99, padding: 3, display: "flex", justifyContent: byDay ? "flex-end" : "flex-start", flexShrink: 0,
+                          background: byDay ? "linear-gradient(180deg, var(--accent), var(--accent-strong))" : "var(--hairline)", border: "1px solid var(--glass-border)", transition: "background 250ms" }}>
+                        <motion.span layout transition={{ type: "spring", stiffness: 600, damping: 34 }} style={{ width: 24, height: 24, borderRadius: "50%", background: "#fff", boxShadow: "0 2px 6px rgba(0,0,0,.25)" }} />
+                      </button>
+                    </div>
+                    {planError && <p role="alert" style={{ color: "var(--danger)", fontWeight: 700, fontSize: "var(--t-small)" }}>{planError}</p>}
+                  </div>
+                )}
 
-      <PasskeySettings profile={profile} />
+                <Reminders profile={profile} onChange={onChange} />
+                <FeedbackSettings />
+                <PasskeySettings profile={profile} />
 
-      <button className="btn btn-glass btn-block" onClick={onEditPlan}>
-        {planLocked
-          ? <><Lock size={18} strokeWidth={1.8} /> Plan fijo durante el reto</>
-          : <><SlidersHorizontal size={18} strokeWidth={1.8} /> Ajustar mi plan</>}
-      </button>
+                {onReplayTour && (
+                  <button className="btn btn-glass btn-block" onClick={onReplayTour}>
+                    <BookOpen size={18} strokeWidth={1.8} /> Ver tutorial
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </section>
+
+      {createPortal(
+        <Sheet open={method} onClose={() => setMethod(false)} title="Cómo estimamos tus calorías">
+          {method && <MethodExplainer />}
+        </Sheet>,
+        document.body
+      )}
 
       {ch && createPortal(
         <Sheet open={preview} onClose={() => setPreview(false)} title="Tu perfil público">
@@ -118,15 +190,18 @@ export default function ProfileScreen({ profile, ch, onChange, onEditPlan, planL
         document.body
       )}
 
-      {onReplayTour && (
-        <button className="btn btn-glass btn-block" onClick={onReplayTour}>
-          <BookOpen size={18} strokeWidth={1.8} /> Ver tutorial
-        </button>
-      )}
-
       <button className="btn btn-glass btn-block" onClick={() => supabase.auth.signOut()}>
         <LogOut size={18} strokeWidth={1.8} /> Cerrar sesión
       </button>
+    </div>
+  );
+}
+
+function PlanRow({ label, value, last }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", gap: "var(--sp-3)", padding: "11px 0", borderBottom: last ? "none" : "1px solid var(--hairline)" }}>
+      <span className="muted">{label}</span>
+      <span className="num" style={{ fontWeight: 700, textAlign: "right" }}>{value}</span>
     </div>
   );
 }

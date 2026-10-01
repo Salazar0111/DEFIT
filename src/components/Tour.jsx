@@ -12,7 +12,7 @@ const SLIDES = [
   {
     mood: "surprised", Icon: Camera,
     title: () => "Registra lo que comes",
-    text: "En Comida toma una foto de tu plato, elige una de tu galería o escribe lo que comiste. La IA calcula las calorías y tú puedes corregirlas antes de guardar.",
+    text: "En Comida saca una foto de tu plato o escribe lo que comiste. La IA calcula las calorías y tú puedes corregirlas antes de guardar.",
   },
   {
     mood: "party", Icon: Target,
@@ -32,8 +32,7 @@ const SLIDES = [
   {
     mood: "sleepy", Icon: Bell,
     title: () => "No te pierdas nada",
-    text: "Activa las notificaciones en Perfil para enterarte de retos, empujones y resultados. En iPhone, abre DEFIT desde el ícono de tu pantalla de inicio.",
-    cta: "Activar notificaciones",
+    text: "Te pediremos activar las notificaciones cuando registres tu primera comida, para avisarte de retos, empujones y resultados. En iPhone, abre DEFIT desde el ícono de tu pantalla de inicio.",
   },
 ];
 
@@ -82,12 +81,7 @@ export default function Tour({ profile, onDone, onGoProfile }) {
 
       <div style={styles.bottom}>
         {last ? (
-          <>
-            <button className="btn btn-primary btn-block" onClick={() => { onDone(); onGoProfile(); }}>
-              <Bell size={18} strokeWidth={2} /> {s.cta}
-            </button>
-            <button className="btn btn-text" onClick={onDone}>Empezar a usar DEFIT</button>
-          </>
+          <button className="btn btn-primary btn-block" onClick={onDone}>Empezar a usar DEFIT</button>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: i ? "1fr 2fr" : "1fr", gap: "var(--sp-2)", width: "100%" }}>
             {i > 0 && <button className="btn btn-glass" onClick={() => go(-1)}>Atrás</button>}

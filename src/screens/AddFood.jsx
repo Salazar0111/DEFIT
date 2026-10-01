@@ -1,17 +1,12 @@
 import { useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Camera, Search, PenLine, ArrowRight, RotateCcw, Images } from "lucide-react";
+import { Camera, PenLine, ArrowRight, RotateCcw, Images, SlidersHorizontal, ChevronDown } from "lucide-react";
 import { estimateFood } from "../lib/supabase";
 import { MEALS, mealForNow, photoToBase64 } from "../lib/food";
 import IngredientEditor from "../components/IngredientEditor";
 import { fromEntry, makeIngredient, serialize, sumIngredients } from "../lib/ingredients";
 
 const ease = [0.16, 1, 0.3, 1];
-const MODES = [
-  { id: "photo", label: "Foto", Icon: Camera },
-  { id: "search", label: "Buscar", Icon: Search },
-  { id: "manual", label: "Manual", Icon: PenLine },
-];
 const DEMO_RESULT = {
   name: "Bandeja paisa", portion: "1 plato",
   ingredients: [
@@ -26,7 +21,8 @@ const DEMO_RESULT = {
 
 // initial: comida ya guardada que se quiere editar (salta el paso de elegir cómo registrar).
 export default function AddFood({ onSave, demo, initial }) {
-  const [mode, setMode] = useState("photo");
+  const [adjust, setAdjust] = useState(!!initial);
+  const [pickMeal, setPickMeal] = useState(false);
   const [meal, setMeal] = useState(initial?.meal || mealForNow());
   const [query, setQuery] = useState("");
   const [preview, setPreview] = useState(null);
@@ -38,7 +34,7 @@ export default function AddFood({ onSave, demo, initial }) {
   const cameraRef = useRef(null);
   const galleryRef = useRef(null);
 
-  const reset = () => { setDraft(null); setPreview(null); setError(""); setQuery(""); };
+  const reset = () => { setAdjust(false); setPickMeal(false); setDraft(null); setPreview(null); setError(""); setQuery(""); };
 
   const estimate = (payload) =>
     demo ? new Promise((ok) => setTimeout(() => ok(DEMO_RESULT), 800)) : estimateFood(payload);
@@ -94,16 +90,40 @@ export default function AddFood({ onSave, demo, initial }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-4)" }}>
-      <Segmented value={meal} onChange={setMeal} options={MEALS.map((m) => ({ id: m.id, label: m.label }))} layoutId="meal-pill" />
+      {/* La comida se elige sola según la hora; solo se muestra si quieres cambiarla */}
+      {pickMeal ? (
+        <Segmented value={meal} onChange={(m) => { setMeal(m); setPickMeal(false); }} options={MEALS.map((m) => ({ id: m.id, label: m.label }))} layoutId="meal-pill" />
+      ) : (
+        <button className="btn btn-text" style={{ alignSelf: "flex-start", minHeight: 36, padding: 0, color: "var(--text-2)", fontWeight: 700 }} onClick={() => setPickMeal(true)}>
+          {MEALS.find((m) => m.id === meal)?.label} <ChevronDown size={16} strokeWidth={2} />
+        </button>
+      )}
 
       <AnimatePresence mode="wait" initial={false}>
         {draft ? (
           <motion.div key="draft" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.3, ease }} style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
             {preview && <img src={preview} alt="" style={styles.thumb} />}
-            <IngredientEditor name={draft.name} onName={(name) => setDraft((x) => ({ ...x, name }))}
-              items={draft.items} onItems={(items) => setDraft((x) => ({ ...x, items }))}
-              onEstimate={(query) => estimate({ mode: "text", query })} />
+            {adjust ? (
+              <IngredientEditor name={draft.name} onName={(name) => setDraft((x) => ({ ...x, name }))}
+                items={draft.items} onItems={(items) => setDraft((x) => ({ ...x, items }))}
+                onEstimate={(query) => estimate({ mode: "text", query })} />
+            ) : (
+              <div className="glass" style={{ padding: "var(--sp-4)", display: "flex", flexDirection: "column", gap: "var(--sp-2)" }}>
+                <input aria-label="Nombre de la comida" value={draft.name} onChange={(e) => setDraft((x) => ({ ...x, name: e.target.value }))}
+                  maxLength={80} placeholder="Nombre de la comida"
+                  style={{ width: "100%", background: "none", border: "none", outline: "none", padding: 0, fontSize: 22, fontWeight: 700, letterSpacing: "-0.02em", color: "var(--text)" }} />
+                <div>
+                  <span className="num" style={{ fontSize: 34, fontWeight: 700, letterSpacing: "-0.03em" }}>{sumIngredients(draft.items).kcal}</span>
+                  <span className="muted" style={{ fontWeight: 700 }}> kcal</span>
+                </div>
+                <p className="caption num">P {Math.round(sumIngredients(draft.items).protein_g)} · C {Math.round(sumIngredients(draft.items).carbs_g)} · G {Math.round(sumIngredients(draft.items).fat_g)}</p>
+                <p className="caption">{draft.items.map((i) => i.name).filter(Boolean).join(", ")}</p>
+                <button className="btn btn-glass" style={{ marginTop: "var(--sp-1)" }} onClick={() => setAdjust(true)}>
+                  <SlidersHorizontal size={17} strokeWidth={1.9} /> Ajustar ingredientes
+                </button>
+              </div>
+            )}
             {error && <p role="alert" style={styles.error}>{error}</p>}
             <div style={styles.actionBar}>
               {!initial && <button className="btn btn-glass" onClick={reset} aria-label="Descartar"><RotateCcw size={18} strokeWidth={1.8} /></button>}
@@ -115,52 +135,42 @@ export default function AddFood({ onSave, demo, initial }) {
         ) : (
           <motion.div key="pick" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.3, ease }} style={{ display: "flex", flexDirection: "column", gap: "var(--sp-4)" }}>
-            <Segmented value={mode} onChange={(m) => { setMode(m); setError(""); }} options={MODES} layoutId="mode-pill" />
+            {/* capture abre la cámara directo; sin capture, iOS ofrece la fototeca */}
+            <input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden onChange={onPhoto} />
+            <input ref={galleryRef} type="file" accept="image/*" hidden onChange={onPhoto} />
+            <div className="glass" style={styles.photoBox}>
+              {preview && <img src={preview} alt="" style={styles.photoBg} />}
+              {busy ? <Analyzing /> : (
+                <>
+                  <span style={styles.photoIcon}><Camera size={28} strokeWidth={1.6} /></span>
+                  <span className="caption" style={{ position: "relative" }}>Foto de tu plato: la IA estima calorías y macros</span>
+                  <div style={{ position: "relative", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--sp-2)", width: "100%", marginTop: "var(--sp-2)" }}>
+                    <button className="btn btn-primary" onClick={() => cameraRef.current?.click()}>
+                      <Camera size={18} strokeWidth={2} /> Cámara
+                    </button>
+                    <button className="btn btn-glass" onClick={() => galleryRef.current?.click()}>
+                      <Images size={18} strokeWidth={1.8} /> Galería
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
 
-            {mode === "photo" && (
-              <>
-                {/* capture abre la cámara directo; sin capture, iOS ofrece la fototeca */}
-                <input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden onChange={onPhoto} />
-                <input ref={galleryRef} type="file" accept="image/*" hidden onChange={onPhoto} />
-                <div className="glass" style={styles.photoBox}>
-                  {preview && <img src={preview} alt="" style={styles.photoBg} />}
-                  {busy ? <Analyzing /> : (
-                    <>
-                      <span style={styles.photoIcon}><Camera size={28} strokeWidth={1.6} /></span>
-                      <span className="caption" style={{ position: "relative" }}>La IA estima calorías y macros</span>
-                      <div style={{ position: "relative", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--sp-2)", width: "100%", marginTop: "var(--sp-2)" }}>
-                        <button className="btn btn-primary" onClick={() => cameraRef.current?.click()}>
-                          <Camera size={18} strokeWidth={2} /> Cámara
-                        </button>
-                        <button className="btn btn-glass" onClick={() => galleryRef.current?.click()}>
-                          <Images size={18} strokeWidth={1.8} /> Galería
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </>
-            )}
-
-            {mode === "search" && (
-              <form onSubmit={(e) => { e.preventDefault(); if (query.trim()) run({ mode: "text", query }); }}
-                style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
-                <div className="field">
-                  <label htmlFor="food-q">¿Qué comiste?</label>
-                  <input id="food-q" value={query} onChange={(e) => setQuery(e.target.value)} maxLength={200}
-                    placeholder="Ej: 2 arepas con queso y un café con leche" autoComplete="off" />
-                </div>
-                <button className="btn btn-primary btn-block" disabled={busy || !query.trim()}>
-                  {busy ? "Calculando…" : <>Calcular <ArrowRight size={18} strokeWidth={2} /></>}
-                </button>
-              </form>
-            )}
-
-            {mode === "manual" && (
-              <button className="btn btn-primary btn-block" onClick={() => setDraft({ name: "", portion: null, items: [makeIngredient({ name: "", grams: 100, kcal: 0 })], source: "manual" })}>
-                Escribir los datos
+            <form onSubmit={(e) => { e.preventDefault(); if (query.trim() && !busy) run({ mode: "text", query }); }}
+              style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "var(--sp-2)" }}>
+              <div className="field">
+                <input aria-label="¿Qué comiste?" value={query} onChange={(e) => setQuery(e.target.value)} maxLength={200}
+                  placeholder="O escribe lo que comiste: 2 arepas con queso" autoComplete="off" />
+              </div>
+              <button className="btn btn-primary" disabled={busy || !query.trim()} aria-label="Calcular">
+                <ArrowRight size={18} strokeWidth={2} />
               </button>
-            )}
+            </form>
+
+            <button className="btn btn-text" style={{ alignSelf: "center", fontSize: "var(--t-small)" }}
+              onClick={() => { setAdjust(true); setDraft({ name: "", portion: null, items: [makeIngredient({ name: "", grams: 100, kcal: 0 })], source: "manual" }); }}>
+              <PenLine size={15} strokeWidth={2} /> Ingresar a mano
+            </button>
 
             {error && <p role="alert" style={styles.error}>{error}</p>}
           </motion.div>

@@ -70,27 +70,6 @@ export default function HomeScreen({ profile, ch, dt, onEditPlan, onOpenChalleng
 
       {ch && <ChallengeTeaser ch={ch} me={profile.id} onOpen={onOpenChallenges} />}
 
-      <section className="glass" style={{ padding: "var(--sp-4) var(--sp-5)" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--sp-2)" }}>
-          <h2>Tu plan</h2>
-          <button className="btn btn-glass" style={{ minHeight: 40, padding: "0 16px", fontSize: "var(--t-small)" }} onClick={onEditPlan}>
-            {ch?.planLocked ? <Lock size={16} strokeWidth={1.8} /> : <SlidersHorizontal size={16} strokeWidth={1.8} />} Ajustar
-          </button>
-        </div>
-        <Row label="Gasto promedio" value={`${fmt(profile.tdee)} kcal`} />
-        <Row label="Objetivo" value={goalText(profile)} />
-        {profile.protein_g > 0 && <Row label="Proteína diaria" value={`${fmt(profile.protein_g)} g`} />}
-        <Row label="Peso de partida" value={`${Number(profile.weight_kg).toLocaleString("es-CO")} kg`} last />
-        <button className="btn btn-text" style={{ minHeight: 36, fontSize: "var(--t-caption)", color: "var(--accent)", alignSelf: "flex-start", padding: 0 }} onClick={() => setMethod(true)}>
-          Cómo se estiman tus calorías
-        </button>
-        {createPortal(
-          <Sheet open={method} onClose={() => setMethod(false)} title="Cómo estimamos tus calorías">
-            {method && <MethodExplainer />}
-          </Sheet>,
-          document.body
-        )}
-      </section>
 
     </div>
   );
@@ -175,6 +154,8 @@ function WeightCard({ profile, onEditPlan }) {
 function DayTypePicker({ profile, dt, today, seen, markSeen }) {
   const [error, setError] = useState("");
   const [explain, setExplain] = useState(false);
+  const [open, setOpen] = useState(false);       // cambiar el tipo de día y los músculos
+  const [note, setNote] = useState(false);       // anotar calorías del reloj o minutos
   const { type, target, adjust, est, watch, muscles } = dt.info(today);
   const kind = kindOfKey(type);
   const [kcal, setKcal] = useState("");
@@ -187,7 +168,7 @@ function DayTypePicker({ profile, dt, today, seen, markSeen }) {
     try {
       if (Number(kcal) > 0) await dt.setWatchKcal(today, kcal);
       else if (Number(mins) > 0) await dt.setWatchKcal(today, cardioEquivalent(profile, type, mins));
-      setKcal(""); setMins(""); fx("success");
+      setKcal(""); setMins(""); setNote(false); fx("success");
     } catch (err) { setError(err.message); }
   };
   const KINDS = [{ id: "rest", label: "Descanso" }, { id: "weights", label: "Pesas" }, { id: "cardio", label: "Cardio" }, { id: "both", label: "Cardio y pesas" }];
@@ -198,78 +179,84 @@ function DayTypePicker({ profile, dt, today, seen, markSeen }) {
   };
   const pickKind = (k) => apply(k, k === "rest" || k === "cardio" ? [] : muscles);
   const toggleMuscle = (m) => apply(kind, muscles.includes(m) ? muscles.filter((x) => x !== m) : [...muscles, m]);
+  const label = DAY_KEY_LABELS[type] || "Descanso";
+  const detail = muscles.length && kind !== "rest" && kind !== "cardio" ? muscles.map((m) => MUSCLE_LABELS[m]).join(", ") : "";
+
   return (
     <section className="glass" style={{ padding: "var(--sp-4) var(--sp-5)", display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "var(--sp-2)" }}>
-        <p className="eyebrow">Hoy es día de</p>
+        <p className="eyebrow">Hoy</p>
         <button onClick={() => setExplain(true)} aria-label="¿Cómo se calcula tu meta?"
           style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "var(--t-caption)", fontWeight: 700, color: "var(--accent)" }}>
           <Info size={16} strokeWidth={2} /> ¿Cómo se calcula?
         </button>
       </div>
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "var(--sp-3)" }}>
+        <div style={{ minWidth: 0 }}>
+          <p style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.02em" }}>{label}</p>
+          {detail && <p className="caption" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{detail}</p>}
+        </div>
+        <button className="btn btn-glass" style={{ minHeight: 40, padding: "0 16px", fontSize: "var(--t-small)" }} onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+          {open ? "Listo" : "Cambiar"}
+        </button>
+      </div>
+
       <motion.div key={target} initial={{ opacity: 0.4 }} animate={{ opacity: 1 }}>
         <Equation math={dayMath(profile, { type, target, est, adjust, watch })} compact />
       </motion.div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 4, padding: 4, borderRadius: "var(--r-pill)", background: "var(--field)", border: "1px solid var(--hairline)" }}>
-        {KINDS.map((o) => {
-          const active = o.id === kind;
-          return (
-            <button key={o.id} onClick={() => pickKind(o.id)} aria-pressed={active}
-              style={{ position: "relative", minHeight: 42, padding: "0 4px", borderRadius: "var(--r-pill)", fontWeight: 700, fontSize: 13 }}>
-              {active && (
-                <motion.span layoutId="daytype-pill" transition={{ type: "spring", stiffness: 420, damping: 34 }}
-                  style={{ position: "absolute", inset: 0, borderRadius: "var(--r-pill)", background: "linear-gradient(180deg, var(--accent), var(--accent-strong))" }} />
-              )}
-              <span style={{ position: "relative", color: active ? "var(--on-accent)" : "var(--text)" }}>{o.label}</span>
-            </button>
-          );
-        })}
-      </div>
 
-      {(kind === "weights" || kind === "both") && (
-        <div>
-          <p className="caption" style={{ fontWeight: 700, marginBottom: 8 }}>Músculos de hoy</p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {MUSCLE_ORDER.map((m) => {
-              const on = muscles.includes(m);
-              return (
-                <button key={m} onClick={() => toggleMuscle(m)} aria-pressed={on}
-                  style={{ padding: "8px 14px", borderRadius: 99, fontWeight: 700, fontSize: "var(--t-small)", color: "var(--text)",
-                    background: on ? (m === "legs" ? "color-mix(in srgb, #3ddc84 25%, transparent)" : "color-mix(in srgb, var(--accent) 22%, transparent)") : "var(--field)",
-                    border: `1px solid ${on ? (m === "legs" ? "color-mix(in srgb, #3ddc84 60%, transparent)" : "color-mix(in srgb, var(--accent) 55%, transparent)") : "var(--hairline)"}` }}>
-                  {MUSCLE_LABELS[m]}
-                </button>
-              );
-            })}
-          </div>
-          <p className="caption" style={{ marginTop: 8 }}>
-            {muscles.length ? `${muscles.map((m) => MUSCLE_LABELS[m]).join(", ")}${muscles.includes("legs") ? " · día de pierna" : ""}` : "Elige los músculos que trabajaste."}
-          </p>
-        </div>
-      )}
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.25 }} style={{ overflow: "hidden", display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 4, padding: 4, borderRadius: "var(--r-pill)", background: "var(--field)", border: "1px solid var(--hairline)" }}>
+              {KINDS.map((o) => {
+                const active = o.id === kind;
+                return (
+                  <button key={o.id} onClick={() => pickKind(o.id)} aria-pressed={active}
+                    style={{ position: "relative", minHeight: 42, padding: "0 4px", borderRadius: "var(--r-pill)", fontWeight: 700, fontSize: 13 }}>
+                    {active && (
+                      <motion.span layoutId="daytype-pill" transition={{ type: "spring", stiffness: 420, damping: 34 }}
+                        style={{ position: "absolute", inset: 0, borderRadius: "var(--r-pill)", background: "linear-gradient(180deg, var(--accent), var(--accent-strong))" }} />
+                    )}
+                    <span style={{ position: "relative", color: active ? "var(--on-accent)" : "var(--text)" }}>{o.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {(kind === "weights" || kind === "both") && (
+              <div>
+                <p className="caption" style={{ fontWeight: 700, marginBottom: 8 }}>Músculos de hoy</p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {MUSCLE_ORDER.map((m) => {
+                    const on = muscles.includes(m);
+                    return (
+                      <button key={m} onClick={() => toggleMuscle(m)} aria-pressed={on}
+                        style={{ padding: "8px 14px", borderRadius: 99, fontWeight: 700, fontSize: "var(--t-small)", color: "var(--text)",
+                          background: on ? (m === "legs" ? "color-mix(in srgb, #3ddc84 25%, transparent)" : "color-mix(in srgb, var(--accent) 22%, transparent)") : "var(--field)",
+                          border: `1px solid ${on ? (m === "legs" ? "color-mix(in srgb, #3ddc84 60%, transparent)" : "color-mix(in srgb, var(--accent) 55%, transparent)") : "var(--hairline)"}` }}>
+                        {MUSCLE_LABELS[m]}
+                      </button>
+                    );
+                  })}
+                </div>
+                {!muscles.length && <p className="caption" style={{ marginTop: 8 }}>Elige los músculos que trabajaste.</p>}
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {est > 0 && (
-        <form onSubmit={saveWatch} style={{ display: "flex", flexDirection: "column", gap: "var(--sp-2)", paddingTop: "var(--sp-2)", borderTop: "1px solid var(--hairline)" }}>
-          {hasCardio && (
-            <>
-              <label htmlFor="cardio-mins" className="caption" style={{ fontWeight: 700 }}>Minutos de cardio que hiciste</label>
-              <div className="field"><input id="cardio-mins" type="number" inputMode="numeric" min="0" max="600" placeholder={`Planeado: ${profile.session_min || 45}`}
-                value={mins} onChange={(e) => setMins(e.target.value)} style={{ height: 44 }} /></div>
-            </>
-          )}
-          <label htmlFor="watch-kcal" className="caption" style={{ fontWeight: 700 }}>Calorías del entreno según tu reloj (opcional)</label>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "var(--sp-2)" }}>
-            <div className="field"><input id="watch-kcal" type="number" inputMode="numeric" min="0" max="5000" placeholder={watch ? String(watch) : `Estimado: ${fmt(est)}`}
-              value={kcal} onChange={(e) => setKcal(e.target.value)} style={{ height: 44 }} /></div>
-            <button className="btn btn-glass" style={{ minHeight: 44 }} disabled={!kcal && !mins}>Guardar</button>
-          </div>
-          {watch > 0 && (
-            <p className="caption num">
-              Registrado: {fmt(watch)} kcal · estimado: {fmt(est)} · {adjust === 0 ? "sin ajuste" : `${adjust > 0 ? "+" : "−"}${fmt(Math.abs(adjust))} a tu meta`}
-              {" "}<button type="button" onClick={() => dt.setWatchKcal(today, 0).catch(() => {})} style={{ textDecoration: "underline", color: "var(--text)" }}>Quitar</button>
-            </p>
-          )}
-        </form>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "var(--sp-2)", paddingTop: "var(--sp-2)", borderTop: "1px solid var(--hairline)" }}>
+          <p className="caption num" style={{ flex: 1, minWidth: 0 }}>
+            {watch > 0 ? `Registrado: ${fmt(watch)} kcal · ${adjust === 0 ? "sin ajuste" : `${adjust > 0 ? "+" : "−"}${fmt(Math.abs(adjust))} a tu meta`}` : "¿Cuánto marcó tu reloj?"}
+          </p>
+          <button className="btn btn-glass" style={{ minHeight: 38, padding: "0 14px", fontSize: "var(--t-caption)" }} onClick={() => setNote(true)}>
+            {watch > 0 ? "Cambiar" : "Anotar entreno"}
+          </button>
+        </div>
       )}
       {error && <p role="alert" style={{ color: "var(--danger)", fontWeight: 700, fontSize: "var(--t-small)" }}>{error}</p>}
 
@@ -277,7 +264,7 @@ function DayTypePicker({ profile, dt, today, seen, markSeen }) {
         <div style={{ padding: "var(--sp-3) var(--sp-4)", borderRadius: "var(--r-md)", background: "color-mix(in srgb, var(--accent) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--accent) 30%, transparent)", display: "flex", flexDirection: "column", gap: "var(--sp-2)" }}>
           <p style={{ fontWeight: 700, fontSize: "var(--t-small)" }}>Tu meta ya incluye este entreno</p>
           <p className="muted" style={{ fontSize: "var(--t-small)", lineHeight: 1.45 }}>
-            La app estima unas {fmt(est)} kcal. Si quieres afinar, anota lo que marcó tu reloj abajo: solo se suma la diferencia, no el total.
+            La app estima unas {fmt(est)} kcal. Si quieres afinar, toca «Anotar entreno» con lo que marcó tu reloj: solo se suma la diferencia, no el total.
           </p>
           <div style={{ display: "flex", gap: "var(--sp-2)" }}>
             <button className="btn btn-primary" style={{ minHeight: 36, padding: "0 14px", fontSize: "var(--t-caption)" }} onClick={() => markSeen("daycalc")}>Entendido</button>
@@ -287,9 +274,34 @@ function DayTypePicker({ profile, dt, today, seen, markSeen }) {
       )}
 
       {createPortal(
-        <Sheet open={explain} onClose={() => setExplain(false)} title="Cómo se calcula tu meta">
-          {explain && <CalcExplainer profile={profile} info={{ type, target, est, adjust, watch }} />}
-        </Sheet>,
+        <>
+          <Sheet open={explain} onClose={() => setExplain(false)} title="Cómo se calcula tu meta">
+            {explain && <CalcExplainer profile={profile} info={{ type, target, est, adjust, watch }} />}
+          </Sheet>
+          <Sheet open={note} onClose={() => setNote(false)} title="Anotar entreno">
+            {note && (
+              <form onSubmit={saveWatch} style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)", paddingBottom: "var(--sp-3)" }}>
+                <p className="muted" style={{ fontSize: "var(--t-small)", lineHeight: 1.5 }}>
+                  Tu meta ya incluye unas <b className="num" style={{ color: "var(--text)" }}>{fmt(est)} kcal</b> de este entreno. Lo que anotes reemplaza esa estimación: solo se suma la diferencia.
+                </p>
+                {hasCardio && (
+                  <div className="field">
+                    <label htmlFor="cardio-mins">Minutos de cardio que hiciste</label>
+                    <input id="cardio-mins" type="number" inputMode="numeric" min="0" max="600" placeholder={`Planeado: ${profile.session_min || 45}`} value={mins} onChange={(e) => setMins(e.target.value)} />
+                  </div>
+                )}
+                <div className="field">
+                  <label htmlFor="watch-kcal">Calorías del entreno según tu reloj</label>
+                  <input id="watch-kcal" type="number" inputMode="numeric" min="0" max="5000" placeholder={watch ? String(watch) : `Estimado: ${fmt(est)}`} value={kcal} onChange={(e) => setKcal(e.target.value)} />
+                </div>
+                <button className="btn btn-primary btn-block" disabled={!kcal && !mins}>Guardar</button>
+                {watch > 0 && (
+                  <button type="button" className="btn btn-text" onClick={async () => { await dt.setWatchKcal(today, 0).catch(() => {}); setNote(false); }}>Quitar lo anotado</button>
+                )}
+              </form>
+            )}
+          </Sheet>
+        </>,
         document.body
       )}
     </section>

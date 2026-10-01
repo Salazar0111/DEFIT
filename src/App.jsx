@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Crown, HandHeart, Lock, ScanFace, Zap } from "lucide-react";
+import { Bell, Crown, HandHeart, Lock, ScanFace, Zap } from "lucide-react";
+import { enablePush, pushStatus } from "./lib/push";
 import { passkeySupported, registerPasskey } from "./lib/passkey";
 import { supabase } from "./lib/supabase";
 import { applyPalette } from "./lib/palettes";
@@ -172,6 +173,24 @@ function Main({ profile, tab, setTab, patchProfile, onEditPlan }) {
     catch (e) { setFaceIdMsg(e.message); }
   };
 
+  // Tras guardar la primera comida se ofrecen las notificaciones (una sola vez; si las deja para después, no se insiste).
+  const [offerNotif, setOfferNotif] = useState(false);
+  const [notifMsg, setNotifMsg] = useState("");
+  useEffect(() => {
+    const onMeal = () => {
+      if (seen("notifask")) return;
+      pushStatus().then((st) => { if (st === "off") setTimeout(() => setOfferNotif(true), 3200); }).catch(() => {});
+    };
+    window.addEventListener("defit:meal-saved", onMeal);
+    return () => window.removeEventListener("defit:meal-saved", onMeal);
+  }); // sin deps: siempre ve el perfil actual
+  const closeNotif = () => { setOfferNotif(false); markSeen("notifask"); };
+  const activateNotif = async () => {
+    setNotifMsg("");
+    try { if (profile.id !== "demo") await enablePush(profile.id); closeNotif(); }
+    catch (e) { setNotifMsg(e.message); }
+  };
+
   const editPlan = () => {
     if (!ch.planLocked) return onEditPlan();
     setNotice("Tu plan está fijo mientras estés en un reto. Podrás ajustarlo cuando termine.");
@@ -243,6 +262,21 @@ function Main({ profile, tab, setTab, patchProfile, onEditPlan }) {
           {faceIdMsg && <p role="alert" style={{ color: "var(--danger)", fontWeight: 700, fontSize: "var(--t-small)" }}>{faceIdMsg}</p>}
           <button className="btn btn-primary btn-block" onClick={activateFaceId}><ScanFace size={18} strokeWidth={2} /> Activar Face ID</button>
           <button className="btn btn-text" onClick={closeFaceId}>Ahora no</button>
+        </div>
+      </Sheet>
+
+      <Sheet open={offerNotif && !offerFaceId && !showTour && !result && !newMedal && !poke} onClose={closeNotif} title="Recordatorios">
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "var(--sp-3)", textAlign: "center", paddingBottom: "var(--sp-4)" }}>
+          <motion.span initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", stiffness: 260, damping: 16 }}
+            style={{ width: 88, height: 88, borderRadius: 28, display: "grid", placeItems: "center", color: "var(--on-accent)",
+              background: "linear-gradient(180deg, var(--accent), var(--accent-strong))" }}>
+            <Bell size={42} strokeWidth={1.6} />
+          </motion.span>
+          <h1>¿Te avisamos?</h1>
+          <p className="muted">Ya registraste tu primera comida. Activa las notificaciones para recordarte tus comidas y avisarte de retos y empujones de tus amigos.</p>
+          {notifMsg && <p role="alert" style={{ color: "var(--danger)", fontWeight: 700, fontSize: "var(--t-small)" }}>{notifMsg}</p>}
+          <button className="btn btn-primary btn-block" onClick={activateNotif}><Bell size={18} strokeWidth={2} /> Activar notificaciones</button>
+          <button className="btn btn-text" onClick={closeNotif}>Ahora no</button>
         </div>
       </Sheet>
 

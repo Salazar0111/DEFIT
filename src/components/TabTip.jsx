@@ -3,10 +3,10 @@ import { avatarSrc } from "../lib/avatars";
 
 export const TAB_TIPS = {
   home: "Este es tu día. El anillo muestra cuántas calorías te quedan y yo cambio de ánimo según cómo vas. Tócame y te cuento más.",
-  food: "Toca «Agregar comida» para registrar con foto, galería o texto. Con las flechas ves días anteriores y con la caneca borras algo.",
+  food: "Toca «Agregar comida»: saca una foto o escribe lo que comiste y la IA calcula. Si algo no cuadra, usa «Ajustar ingredientes». Con las flechas ves días anteriores y con la caneca borras algo.",
   workout: "Aquí ves tu semana y la sesión de hoy. Toca «Empezar» y registra cada serie. Si entrenaste otra cosa, usa «Hice otra cosa».",
-  challenges: "Crea un reto con «Nuevo reto». En Amigos ves a tu gente, en Muro lo que pasa en el grupo y en Medallas tus premios.",
-  profile: "Aquí cambias tu avatar y colores, activas notificaciones y Face ID, y ves cómo te ven tus amigos. «Ver tutorial» repite la guía.",
+  challenges: "Crea un reto con «Nuevo reto». En Social ves a tus amigos y lo que pasa en el grupo, y en Medallas tus premios.",
+  profile: "Aquí ves tu plan y cómo te ven tus amigos. En «Ajustes» están colores, notificaciones, Face ID y el tutorial.",
 };
 
 // Burbuja del personaje la primera vez que se entra a una pestaña.
