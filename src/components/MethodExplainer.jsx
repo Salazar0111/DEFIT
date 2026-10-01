@@ -21,7 +21,7 @@ export default function MethodExplainer() {
 
       <div>
         <Row title="Metabolismo basal (lo que gastas en reposo)" uses="sexo, edad, altura y peso. Si indicas tu % de grasa, también lo usa."
-          source="Fórmula Mifflin-St Jeor (1990), la más validada en adultos. Con % de grasa, Katch-McArdle. La contextura ajusta ±4% (criterio de DEFIT, no de la fórmula)." />
+          source="Fórmula Mifflin-St Jeor (1990), la más validada en adultos. Con % de grasa, Katch-McArdle." />
         <Row title="Tu día fuera del gym" uses="el tipo de trabajo que elegiste."
           source="Multiplicadores convencionales de actividad (1,2 · 1,35 · 1,5). Son aproximados." />
         <Row title="Calorías del entrenamiento" uses="tu peso, la duración, el tipo de entreno y la intensidad; en cardio, tu velocidad e inclinación. No usa tu sexo ni tu edad."

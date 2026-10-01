@@ -156,7 +156,7 @@ export function burnKcal(key, intensity, minutes, weight, cardio) {
   return Math.max(0, round((keyMet(key, intensity, cardio) - 1) * weight * (minutes / 60)));
 }
 
-// Metabolismo basal: Katch-McArdle si se conoce la grasa corporal; si no, Mifflin-St Jeor con ajuste por contextura.
+// Metabolismo basal: Katch-McArdle si se conoce la grasa corporal; si no, Mifflin-St Jeor (sin ajustes propios).
 export function basal({ sex, age, height_cm, weight_kg, frame, body_fat }) {
   const w = Number(weight_kg), h = Number(height_cm);
   if (body_fat) {
@@ -164,7 +164,7 @@ export function basal({ sex, age, height_cm, weight_kg, frame, body_fat }) {
     return round(370 + 21.6 * lbm);
   }
   const mifflin = 10 * w + 6.25 * h - 5 * age + (sex === "m" ? 5 : -161);
-  return round(mifflin * (1 + (FRAMES.find((f) => f.id === frame)?.adj ?? 0)));
+  return round(mifflin);
 }
 
 export const defaultMinutes = 60;

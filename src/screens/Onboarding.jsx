@@ -55,13 +55,10 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
 
   const steps = [
     !edit && "welcome",
-    !edit && "palette",
-    "sex", "birthdate", "body", "frame", "lifestyle", "trains",
+    "data", "lifestyle", "trains",
     d.trains && "days",
     d.trains && trainDays.length > 0 && "dayplan",
-    hasCardio && "cardio",
-    d.trains && "session",
-    d.trains && "mode",
+    d.trains && trainDays.length > 0 && "training",
     "goal", "summary",
   ].filter(Boolean);
   const current = steps[step];
@@ -69,18 +66,12 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
   const age = ageFrom(d.birthdate);
   const valid = {
     welcome: d.name.trim().length > 0,
-    palette: true,
-    sex: !!d.sex,
-    birthdate: age >= 14 && age <= 100,
-    body: Number(d.height_cm) >= 120 && Number(d.height_cm) <= 230 && Number(d.weight_kg) >= 30 && Number(d.weight_kg) <= 300,
-    frame: !!d.frame,
+    data: !!d.sex && age >= 14 && age <= 100 && Number(d.height_cm) >= 120 && Number(d.height_cm) <= 230 && Number(d.weight_kg) >= 30 && Number(d.weight_kg) <= 300,
     lifestyle: !!d.lifestyle,
     trains: d.trains !== null,
     days: trainDays.length > 0,
-    cardio: Number(d.cardio.speed) >= (d.cardio.mode === "walk" ? 3 : 6) && Number(d.cardio.speed) <= (d.cardio.mode === "walk" ? 7 : 22) && Number(d.cardio.incline) >= 0 && Number(d.cardio.incline) <= 15,
+    training: !hasCardio || (Number(d.cardio.speed) >= (d.cardio.mode === "walk" ? 3 : 6) && Number(d.cardio.speed) <= (d.cardio.mode === "walk" ? 7 : 22) && Number(d.cardio.incline) >= 0 && Number(d.cardio.incline) <= 15),
     dayplan: trainDays.every((n) => d.day_plan[n].kind === "cardio" || d.day_plan[n].muscles.length > 0),
-    session: true,
-    mode: true,
     goal: !!d.goal && (!plan?.warnings.length || ack),
     summary: !!plan,
   }[current];
@@ -186,10 +177,24 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
                     </motion.button>
                   ))}
                 </div>
+                <p className="eyebrow" style={{ marginTop: "var(--sp-3)" }}>Colores</p>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "var(--sp-2)" }}>
+                  {PALETTES.map((pl) => {
+                    const on = d.palette === pl.id;
+                    return (
+                      <button key={pl.id} aria-pressed={on} onClick={() => { set({ palette: pl.id }); applyPalette(pl.id); }}
+                        style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "10px 4px", borderRadius: "var(--r-md)", color: "var(--text)",
+                          background: "var(--field)", border: `1px solid ${on ? "var(--accent)" : "var(--hairline)"}`, boxShadow: on ? "0 0 0 1px var(--accent)" : "none" }}>
+                        <span style={{ ...styles.swatch, background: pl.bg }}><span style={{ ...styles.dot, background: pl.accent }} /></span>
+                        <span style={{ fontSize: "var(--t-caption)", fontWeight: 700 }}>{pl.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </>
             )}
 
-            {current === "palette" && (
+            {false && current === "palette" && (
               <>
                 <Head eyebrow="Tu estilo" title="Escoge los colores de tu app" text="Puedes cambiarlos cuando quieras desde tu perfil." />
                 {PALETTES.map((p) => (
@@ -200,44 +205,32 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
               </>
             )}
 
-            {current === "sex" && (
+            {current === "data" && (
               <>
-                <Head eyebrow="Tu cuerpo" title="¿Cuál es tu sexo biológico?" text="Cambia la fórmula de tu metabolismo basal." />
-                <Option active={d.sex === "f"} title="Mujer" onClick={() => set({ sex: "f" })} />
-                <Option active={d.sex === "m"} title="Hombre" onClick={() => set({ sex: "m" })} />
-              </>
-            )}
-
-            {current === "birthdate" && (
-              <>
-                <Head eyebrow="Tu cuerpo" title="¿Cuándo naciste?" text="Tu edad se actualiza sola cada año." />
+                <Head eyebrow="Tus datos" title="Cuéntanos de ti" text="Con esto calculamos tu metabolismo. Pésate en ayunas para un dato real." />
+                <p className="eyebrow">Sexo biológico</p>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, padding: 4, borderRadius: "var(--r-pill)", background: "var(--field)", border: "1px solid var(--hairline)" }}>
+                  {[{ id: "f", label: "Mujer" }, { id: "m", label: "Hombre" }].map((o) => (
+                    <button key={o.id} aria-pressed={d.sex === o.id} onClick={() => set({ sex: o.id })}
+                      style={{ ...styles.kindBtn, ...(d.sex === o.id && styles.kindOn) }}>{o.label}</button>
+                  ))}
+                </div>
                 <div className="field">
-                  <label htmlFor="ob-birth">Fecha de nacimiento</label>
+                  <label htmlFor="ob-birth">Fecha de nacimiento{valid && age ? ` · ${age} años` : ""}</label>
                   <input id="ob-birth" type="date" value={d.birthdate} max={new Date().toISOString().slice(0, 10)}
                     onChange={(e) => set({ birthdate: e.target.value })} />
                 </div>
-                {valid && <p className="muted">{age} años</p>}
-              </>
-            )}
-
-            {current === "body" && (
-              <>
-                <Head eyebrow="Tu cuerpo" title="Altura y peso actual" text="Pésate en ayunas para un dato real." />
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--sp-3)" }}>
                   <BigNumber id="ob-h" label="Altura" unit="cm" value={d.height_cm} onChange={(v) => set({ height_cm: v })} />
                   <BigNumber id="ob-w" label="Peso" unit="kg" value={d.weight_kg} step="0.1" onChange={(v) => set({ weight_kg: v })} />
                 </div>
-                <BigNumber id="ob-bf" label="% de grasa (opcional)" unit="%" value={d.body_fat} step="0.1" onChange={(v) => set({ body_fat: v })} />
-                <p className="caption">Si no lo sabes, déjalo vacío. Con este dato el cálculo es más preciso en personas con mucho músculo.</p>
-              </>
-            )}
-
-            {current === "frame" && (
-              <>
-                <Head eyebrow="Tu cuerpo" title="¿Cuál es tu contextura?" text="Ajusta levemente tu metabolismo basal." />
-                {FRAMES.map((f) => (
-                  <Option key={f.id} active={d.frame === f.id} title={f.label} text={f.hint} onClick={() => set({ frame: f.id })} />
-                ))}
+                <details style={{ marginTop: "var(--sp-1)" }}>
+                  <summary className="caption" style={{ fontWeight: 700, cursor: "pointer", color: "var(--accent)" }}>¿Conoces tu % de grasa? (opcional)</summary>
+                  <div style={{ marginTop: "var(--sp-2)" }}>
+                    <BigNumber id="ob-bf" label="% de grasa" unit="%" value={d.body_fat} step="0.1" onChange={(v) => set({ body_fat: v })} />
+                    <p className="caption" style={{ marginTop: 6 }}>Si lo sabes, el cálculo es más preciso en personas con mucho músculo. Si no, déjalo vacío.</p>
+                  </div>
+                </details>
               </>
             )}
 
@@ -329,9 +322,26 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
               </>
             )}
 
-            {current === "cardio" && (
+            {current === "training" && (
               <>
-                <Head eyebrow="Tu entrenamiento" title="Tu cardio en la trotadora" text="La velocidad y la inclinación son lo que más cambia las calorías que gastas." />
+                <Head eyebrow="Tu entrenamiento" title="Duración, intensidad y cardio" />
+                <p className="eyebrow">Duración de cada sesión</p>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "var(--sp-2)" }}>
+                  {SESSION_MINUTES.map((m) => (
+                    <button key={m} onClick={() => set({ session_min: m })} aria-pressed={d.session_min === m}
+                      style={{ ...styles.chip, ...(d.session_min === m && styles.chipOn) }}>
+                      <span className="num" style={{ fontSize: 22, fontWeight: 700 }}>{m}</span>
+                      <span style={{ fontSize: "var(--t-caption)" }}>min</span>
+                    </button>
+                  ))}
+                </div>
+                <p className="eyebrow" style={{ marginTop: "var(--sp-3)" }}>Intensidad</p>
+                <Option active={d.intensity === "moderate"} title="Moderada" text="Terminas cansado, pero con reserva." onClick={() => set({ intensity: "moderate" })} />
+                <Option active={d.intensity === "intense"} title="Intensa" text="Llegas cerca del límite en casi todas las series." onClick={() => set({ intensity: "intense" })} />
+                {hasCardio && (
+                  <>
+                <p className="eyebrow" style={{ marginTop: "var(--sp-4)" }}>Cardio en la trotadora</p>
+                <p className="caption">La velocidad y la inclinación son lo que más cambia las calorías que gastas.</p>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, padding: 4, borderRadius: "var(--r-pill)", background: "var(--field)", border: "1px solid var(--hairline)" }}>
                   {[{ id: "walk", label: "Caminar" }, { id: "run", label: "Trotar o correr" }].map((m) => {
                     const on = d.cardio.mode === m.id;
@@ -354,42 +364,14 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
                     Es una estimación basada en las ecuaciones de la trotadora del Colegio Americano de Medicina del Deporte. Si tu reloj marca otra cifra, podrás anotarla.
                   </p>
                 </div>
-              </>
-            )}
-
-            {current === "session" && (
-              <>
-                <Head eyebrow="Tu entrenamiento" title="¿Cuánto dura y qué tan duro?" />
-                <p className="eyebrow">Duración de cada sesión</p>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "var(--sp-2)" }}>
-                  {SESSION_MINUTES.map((m) => (
-                    <button key={m} onClick={() => set({ session_min: m })} aria-pressed={d.session_min === m}
-                      style={{ ...styles.chip, ...(d.session_min === m && styles.chipOn) }}>
-                      <span className="num" style={{ fontSize: 22, fontWeight: 700 }}>{m}</span>
-                      <span style={{ fontSize: "var(--t-caption)" }}>min</span>
-                    </button>
-                  ))}
-                </div>
-                <p className="eyebrow" style={{ marginTop: "var(--sp-3)" }}>Intensidad</p>
-                <Option active={d.intensity === "moderate"} title="Moderada" text="Terminas cansado, pero con reserva." onClick={() => set({ intensity: "moderate" })} />
-                <Option active={d.intensity === "intense"} title="Intensa" text="Llegas cerca del límite en casi todas las series." onClick={() => set({ intensity: "intense" })} />
+                  </>
+                )}
                 <div style={styles.note}>
                   <Info size={18} strokeWidth={2} style={{ color: "var(--accent)", flexShrink: 0, marginTop: 2 }} />
                   <p style={{ fontSize: "var(--t-small)", lineHeight: 1.5 }}>
                     Con esto estimamos cuántas calorías gastas en cada entreno y las sumamos a tu meta de comida. Después podrás corregirlo con las calorías de tu reloj o los minutos de cardio: solo se suma la diferencia, no el total.
                   </p>
                 </div>
-              </>
-            )}
-
-            {current === "mode" && (
-              <>
-                <Head eyebrow="Tu meta diaria" title="¿Cómo quieres tu meta?" text="Con la misma cantidad total de la semana, solo cambia cómo se reparte." />
-                <Option active={d.target_mode === "by_day"} title="Según el día (recomendado)"
-                  text="Más calorías los días de entreno y pierna, menos en descanso."
-                  onClick={() => set({ target_mode: "by_day" })} />
-                <Option active={d.target_mode === "fixed"} title="La misma todos los días"
-                  text="Una sola meta, sin cambiar nada cada día." onClick={() => set({ target_mode: "fixed" })} />
               </>
             )}
 
