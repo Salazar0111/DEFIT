@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
-import { Check, ChevronRight, Dumbbell, Pencil, Play, RefreshCw, Shuffle, Moon } from "lucide-react";
+import { Check, ChevronRight, Dumbbell, HeartPulse, Pencil, Play, RefreshCw, Shuffle, Moon } from "lucide-react";
 import { useEffect } from "react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { avatarSrc } from "../lib/avatars";
@@ -9,7 +9,7 @@ import Sheet from "../components/Sheet";
 import WorkoutSession from "../components/WorkoutSession";
 import RoutineEditor from "../components/RoutineEditor";
 import { WEEKDAYS } from "../lib/plan";
-import { buildRoutine, exerciseById, templatesFor } from "../lib/exercises";
+import { buildRoutine, buildRoutineFromPlan, exerciseById, templatesFor } from "../lib/exercises";
 
 const ease = [0.16, 1, 0.3, 1];
 const dowOf = (day) => ((new Date(day + "T12:00:00").getDay() + 6) % 7) + 1;
@@ -28,9 +28,14 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan }) {
   const [editingDow, setEditingDow] = useState(null); // día de la semana cuya sesión se edita
 
   useEffect(() => { wk.myExercises().then(setMarks).catch(() => {}); }, [wk.logs.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Con plan por día, la rutina se arma sola con los músculos que eligió cada día.
+  useEffect(() => {
+    if (!wk.routine && profile.trains && profile.day_plan && Object.keys(profile.day_plan).length) wk.saveRoutine(buildRoutineFromPlan(profile.day_plan));
+  }, [wk.routine, profile.trains, profile.day_plan]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { routine, today } = wk;
   const days = profile.train_days || [];
+  const hasPlan = !!profile.day_plan && Object.keys(profile.day_plan).length > 0;
   const todayDow = dowOf(today);
   const plannedToday = routine?.days?.[todayDow];
   const weekDone = new Set(wk.logs.map((l) => dowOf(l.day)));
@@ -46,6 +51,7 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan }) {
     );
   }
 
+  if (!routine && hasPlan) return null; // se está generando desde el plan
   if (!routine) {
     const options = templatesFor(days.length);
     return (
@@ -75,7 +81,17 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan }) {
     setEditingDow(null);
   };
 
+  const finishCardio = async (s) => {
+    setError("");
+    try {
+      await wk.finish({ name: s.name, leg: false, durationS: (profile.session_min || 45) * 60, sets: [] });
+      await dt.setType(today, s.key || "cardio").catch(() => {});
+      setSaved(true); setTimeout(() => setSaved(false), 4000);
+    } catch (e) { setError(e.message); }
+  };
+
   const start = async (s) => {
+    if (!s.exercises?.length) return finishCardio(s);
     const r = await wk.lastSets(s.exercises.map((e) => e.id)).catch(() => ({ last: {}, best: {} }));
     setLast(r.last); setBest(r.best);
     setSession(s);
@@ -85,7 +101,7 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan }) {
     try {
       await wk.finish({ name: session.name, leg: !!session.leg, durationS, sets });
       // El día queda como entreno o pierna, y su meta se ajusta sola.
-      await dt.setType(today, session.leg ? "leg" : "train").catch(() => {});
+      await dt.setType(today, session.key || (session.leg ? "leg" : "train")).catch(() => {});
       setSession(null);
       if (records?.length) setNewRecords(records); else { setSaved(true); setTimeout(() => setSaved(false), 4000); }
     } catch (e) { setError(e.message); }
@@ -108,7 +124,7 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan }) {
               <button key={w.n} disabled={!planned} onClick={() => setEditingDow(w.n)} aria-label={planned ? `Editar ${planned.name} del ${w.long}` : w.long}
                 style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, color: "var(--text)" }}>
                 <span className="caption" style={{ fontWeight: isToday ? 700 : 400, color: isToday ? "var(--text)" : undefined }}>{w.short}</span>
-                <span style={{ ...styles.dayDot, ...(planned && (planned.leg ? styles.leg : styles.train)), ...(isToday && styles.today) }}>
+                <span style={{ ...styles.dayDot, ...(planned && (["leg", "cwl"].includes(planned.key) || (!planned.key && planned.leg) ? styles.leg : planned.key === "cardio" ? styles.cardio : styles.train)), ...(isToday && styles.today) }}>
                   {done ? <Check size={16} strokeWidth={3} /> : null}
                 </span>
               </button>
@@ -136,17 +152,31 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan }) {
             </button>
           </div>
           <h1 style={{ fontSize: 30 }}>{plannedToday.name}</h1>
-          <ul style={styles.list}>
-            {plannedToday.exercises.map((e) => (
-              <li key={e.id} style={styles.li}>
-                <span style={{ flex: 1 }}>{exerciseById(e.id)?.name}</span>
-                <span className="num caption">{e.sets} × {e.reps}</span>
-              </li>
-            ))}
-          </ul>
-          <button className="btn btn-primary" style={{ minHeight: 60, fontSize: 18 }} onClick={() => start(plannedToday)}>
-            <Play size={20} strokeWidth={2.2} /> {wk.trainedToday ? "Entrenar otra vez" : "Empezar"}
-          </button>
+          {plannedToday.exercises?.length > 0 ? (
+            <>
+              <ul style={styles.list}>
+                {plannedToday.exercises.map((e) => (
+                  <li key={e.id} style={styles.li}>
+                    <span style={{ flex: 1 }}>{exerciseById(e.id)?.name}</span>
+                    <span className="num caption">{e.sets} × {e.reps}</span>
+                  </li>
+                ))}
+              </ul>
+              {plannedToday.cardio && (
+                <p className="caption" style={{ display: "flex", alignItems: "center", gap: 6 }}><HeartPulse size={15} strokeWidth={2} /> Incluye cardio al terminar.</p>
+              )}
+              <button className="btn btn-primary" style={{ minHeight: 60, fontSize: 18 }} onClick={() => start(plannedToday)}>
+                <Play size={20} strokeWidth={2.2} /> {wk.trainedToday ? "Entrenar otra vez" : "Empezar"}
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="muted" style={{ display: "flex", alignItems: "center", gap: 8 }}><HeartPulse size={18} strokeWidth={1.8} /> {profile.session_min || 45} minutos de cardio.</p>
+              <button className="btn btn-primary" style={{ minHeight: 60, fontSize: 18 }} onClick={() => finishCardio(plannedToday)}>
+                <Check size={20} strokeWidth={2.4} /> {wk.trainedToday ? "Registrar otra vez" : "Marcar cardio hecho"}
+              </button>
+            </>
+          )}
         </section>
       ) : (
         <section className="glass" style={styles.card}>
@@ -204,6 +234,12 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan }) {
           </Sheet>
           <Sheet open={changing} onClose={() => setChanging(false)} title="Cambiar rutina">
             <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-2)", paddingBottom: "var(--sp-3)" }}>
+              {hasPlan && (
+                <button className="glass" style={styles.pick} onClick={() => { wk.saveRoutine(buildRoutineFromPlan(profile.day_plan)); setChanging(false); }}>
+                  <span style={{ fontWeight: 700 }}>Generar desde mi plan</span>
+                  <span className="caption">Una sesión por día, según los músculos que elegiste.</span>
+                </button>
+              )}
               {templatesFor(days.length).map((t) => (
                 <button key={t.id} className="glass" style={styles.pick} onClick={() => { wk.saveRoutine(buildRoutine(t, days)); setChanging(false); }}>
                   <span style={{ fontWeight: 700 }}>{t.name}</span>
@@ -292,6 +328,7 @@ const styles = {
   },
   train: { background: "color-mix(in srgb, var(--accent) 70%, transparent)", borderColor: "transparent" },
   leg: { background: "color-mix(in srgb, #3ddc84 75%, transparent)", borderColor: "transparent" },
+  cardio: { background: "color-mix(in srgb, #ffb02e 80%, transparent)", borderColor: "transparent" },
   today: { boxShadow: "0 0 0 2px var(--bg), 0 0 0 4px var(--text)" },
   list: { listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column" },
   li: { display: "flex", gap: "var(--sp-3)", padding: "10px 0", borderTop: "1px solid var(--hairline)", fontSize: "var(--t-small)", fontWeight: 700 },

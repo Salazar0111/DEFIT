@@ -34,9 +34,16 @@ const DEMO_PROFILE = params.get("demo") === "nuevo"
       id: "demo", name: "Brayan", avatar: "a3", palette: "noche-azul", onboarded: true,
       sex: "m", birthdate: "1995-05-10", height_cm: 178, weight_kg: 92, frame: "medium",
       activity: null, deficit: 600, bmr: 1883, tdee: 2431, target_kcal: 1831, protein_g: 184, plan_version: 2,
-      lifestyle: "seated", trains: true, train_type: "weights", train_days: [1, 2, 4, 5], leg_days: [2, 5],
+      lifestyle: "seated", trains: true, train_type: "weights", train_days: [1, 2, 4, 5, 6], leg_days: [2, 5],
       session_min: 60, intensity: "moderate", goal: "lose", target_mode: "by_day",
-      targets: { rest: 1660, train: 1890, leg: 2028 },
+      day_plan: {
+        1: { kind: "weights", muscles: ["chest", "shoulders"], key: "train" },
+        2: { kind: "weights", muscles: ["legs", "core"], key: "leg" },
+        4: { kind: "both", muscles: ["back", "arms"], key: "cw" },
+        5: { kind: "both", muscles: ["legs"], key: "cwl" },
+        6: { kind: "cardio", muscles: [], key: "cardio" },
+      },
+      targets: { rest: 1660, train: 1890, leg: 2028, cardio: 2074, cw: 1982, cwl: 2051 },
       // ?demo&tour muestra el tutorial; ?demo&tips, las burbujas por pestaña.
       tips_seen: params.has("tour") ? [] : params.has("tips") ? ["tour"] : ["tour", "home", "food", "workout", "challenges", "profile"],
     };

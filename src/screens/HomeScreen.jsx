@@ -2,7 +2,7 @@ import { motion } from "motion/react";
 import { ChevronRight, Lock, SlidersHorizontal, Swords } from "lucide-react";
 import { avatarSrc } from "../lib/avatars";
 import { challengeTitle } from "./ChallengesScreen";
-import { fmt } from "../lib/plan";
+import { DAY_KEY_LABELS, DAY_KEY_ORDER, fmt } from "../lib/plan";
 import { useFood } from "../lib/useFood";
 import { createPortal } from "react-dom";
 import Sheet from "../components/Sheet";
@@ -162,8 +162,7 @@ function WeightCard({ profile, onEditPlan }) {
 function DayTypePicker({ profile, dt, today }) {
   const [error, setError] = useState("");
   const { type, target } = dt.info(today);
-  const options = [{ id: "rest", label: "Descanso" }, { id: "train", label: profile.train_type === "cardio" ? "Cardio" : "Entreno" },
-    ...(profile.train_type !== "cardio" && (profile.train_days || []).length ? [{ id: "leg", label: "Pierna" }] : [])];
+  const options = DAY_KEY_ORDER.filter((k) => k === "rest" || profile.targets?.[k] != null).map((id) => ({ id, label: DAY_KEY_LABELS[id] }));
   const pick = async (id) => {
     setError("");
     fx("tick");
@@ -177,18 +176,19 @@ function DayTypePicker({ profile, dt, today }) {
           Meta {fmt(target)} kcal
         </motion.span>
       </div>
-      <div style={{ display: "flex", gap: 4, padding: 4, borderRadius: "var(--r-pill)", background: "var(--field)", border: "1px solid var(--hairline)" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, padding: 4, borderRadius: options.length > 3 ? "var(--r-md)" : "var(--r-pill)", background: "var(--field)", border: "1px solid var(--hairline)" }}>
         {options.map((o) => {
           const active = o.id === type;
+          const green = o.id === "leg" || o.id === "cwl";
           return (
             <button key={o.id} onClick={() => pick(o.id)} aria-pressed={active}
-              style={{ position: "relative", flex: 1, minHeight: 42, borderRadius: "var(--r-pill)", fontWeight: 700, fontSize: "var(--t-small)" }}>
+              style={{ position: "relative", flex: "1 1 auto", minWidth: 84, minHeight: 42, padding: "0 12px", borderRadius: "var(--r-pill)", fontWeight: 700, fontSize: "var(--t-small)", whiteSpace: "nowrap" }}>
               {active && (
                 <motion.span layoutId="daytype-pill" transition={{ type: "spring", stiffness: 420, damping: 34 }}
                   style={{ position: "absolute", inset: 0, borderRadius: "var(--r-pill)",
-                    background: o.id === "leg" ? "linear-gradient(180deg, #3ddc84, #1b8a4c)" : "linear-gradient(180deg, var(--accent), var(--accent-strong))" }} />
+                    background: green ? "linear-gradient(180deg, #3ddc84, #1b8a4c)" : "linear-gradient(180deg, var(--accent), var(--accent-strong))" }} />
               )}
-              <span style={{ position: "relative", color: active ? (o.id === "leg" ? "#fff" : "var(--on-accent)") : "var(--text)" }}>{o.label}</span>
+              <span style={{ position: "relative", color: active ? (green ? "#fff" : "var(--on-accent)") : "var(--text)" }}>{o.label}</span>
             </button>
           );
         })}

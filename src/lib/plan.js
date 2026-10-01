@@ -106,11 +106,21 @@ export const GOALS = [
   { id: "gain_fast", label: "Ganar peso más rápido", hint: "+20% sobre tu gasto. Sube más, sobre todo grasa." },
 ];
 
-export const DAY_TYPES = [
-  { id: "rest", label: "Descanso" },
-  { id: "train", label: "Entreno" },
-  { id: "leg", label: "Pierna" },
-];
+// Tipos de día (clave que fija la meta): descanso, pesas, pierna, cardio, cardio y pesas, cardio y pierna.
+export const DAY_KEY_LABELS = { rest: "Descanso", train: "Pesas", leg: "Pierna", cardio: "Cardio", cw: "Cardio y pesas", cwl: "Cardio y pierna" };
+export const DAY_KEY_ORDER = ["rest", "train", "leg", "cardio", "cw", "cwl"];
+export const DAY_TYPES = DAY_KEY_ORDER.map((id) => ({ id, label: DAY_KEY_LABELS[id] }));
+
+export const MUSCLE_LABELS = { chest: "Pecho", back: "Espalda", shoulders: "Hombros", arms: "Brazos", legs: "Pierna", core: "Core" };
+export const MUSCLE_ORDER = ["chest", "back", "shoulders", "arms", "legs", "core"];
+
+// kind: "weights" | "cardio" | "both". Con pierna entre los músculos, el día gasta más.
+export const dayKeyOf = (kind, muscles = []) => {
+  const legs = muscles.includes("legs");
+  if (kind === "cardio") return "cardio";
+  if (kind === "both") return legs ? "cwl" : "cw";
+  return legs ? "leg" : "train";
+};
 
 // MET de referencia (Compendio de Actividad Física 2024). Se resta 1 para no contar dos veces el basal.
 const MET = {
@@ -118,11 +128,13 @@ const MET = {
   weights: { moderate: 3.5, intense: 4.5 },
   cardio: { moderate: 5.5, intense: 7.0 },
   both: { moderate: 4.5, intense: 5.5 },
+  cwl: { moderate: 5.25, intense: 6.5 },
 };
+const KEY_MET = { train: "weights", leg: "leg", cardio: "cardio", cw: "both", cwl: "cwl" };
 
 const round = (n) => Math.round(n);
 
-// type: "leg", "weights", "cardio" o "both".
+// type: "leg", "weights", "cardio", "both" o "cwl".
 export function trainKcal(type, intensity, minutes, weight) {
   const met = MET[type]?.[intensity] ?? 0;
   return Math.max(0, round((met - 1) * weight * (minutes / 60)));
@@ -141,7 +153,24 @@ export function basal({ sex, age, height_cm, weight_kg, frame, body_fat }) {
 
 export const defaultMinutes = 60;
 
-// Devuelve el plan completo: metas por tipo de día, meta promedio, proteína, advertencias y cambio estimado.
+// Planes anteriores (un solo tipo de entreno y días de pierna) → plan por día.
+export function legacyDayPlan(d) {
+  const out = {};
+  const kind = d.train_type || "weights";
+  (d.train_days || []).forEach((n) => {
+    const muscles = (d.leg_days || []).includes(n) ? ["legs"] : [];
+    out[n] = { kind, muscles, key: dayKeyOf(kind, muscles) };
+  });
+  return out;
+}
+
+// Plan por día normalizado: { dow: { kind, muscles, key } }.
+export function normalizeDayPlan(d) {
+  const raw = d.day_plan && Object.keys(d.day_plan).length ? d.day_plan : legacyDayPlan(d);
+  return Object.fromEntries(Object.entries(raw).map(([n, e]) => [n, { kind: e.kind, muscles: e.muscles || [], key: e.key || dayKeyOf(e.kind, e.muscles) }]));
+}
+
+// Devuelve el plan completo: metas por tipo de día, meta promedio, proteína, avisos y cambio estimado.
 export function computePlanV2(d) {
   const age = ageFrom(d.birthdate);
   const w = Number(d.weight_kg);
@@ -149,21 +178,23 @@ export function computePlanV2(d) {
 
   const bmr = basal({ ...d, age });
   const base = round(bmr * LIFESTYLES.find((l) => l.id === d.lifestyle).factor);
-  const trains = !!d.trains && (d.train_days || []).length > 0;
-  const trainType = d.train_type || "weights";
+  const dp = d.trains ? normalizeDayPlan(d) : {};
+  const trainDays = Object.keys(dp).map(Number).sort((a, b) => a - b);
+  const trains = trainDays.length > 0;
   const minutes = d.session_min || defaultMinutes;
   const intensity = d.intensity || "moderate";
-  const legDays = trainType === "cardio" ? [] : (d.leg_days || []).filter((n) => (d.train_days || []).includes(n));
-  const plainDays = trains ? (d.train_days || []).filter((n) => !legDays.includes(n)) : [];
 
-  const burn = {
-    rest: 0,
-    train: trains ? trainKcal(trainType, intensity, minutes, w) : 0,
-    leg: trains ? trainKcal(trainType === "cardio" ? "cardio" : "leg", intensity, minutes, w) : 0,
-  };
-  const exp = { rest: base, train: base + burn.train, leg: base + burn.leg };
-  const count = { rest: 7 - plainDays.length - legDays.length, train: plainDays.length, leg: legDays.length };
-  const weeklyExp = exp.rest * count.rest + exp.train * count.train + exp.leg * count.leg;
+  // Cuántos días hay de cada tipo y qué gasta cada uno.
+  const count = { rest: 7 - trainDays.length };
+  trainDays.forEach((n) => { count[dp[n].key] = (count[dp[n].key] || 0) + 1; });
+  const keys = DAY_KEY_ORDER.filter((k) => count[k] > 0);
+  const burn = { rest: 0 };
+  const exp = { rest: base };
+  keys.filter((k) => k !== "rest").forEach((k) => {
+    burn[k] = trainKcal(KEY_MET[k], intensity, minutes, w);
+    exp[k] = base + burn[k];
+  });
+  const weeklyExp = keys.reduce((t, k) => t + exp[k] * count[k], 0);
   const avgExp = weeklyExp / 7;
 
   // Ajuste por objetivo sobre el gasto promedio.
@@ -171,26 +202,29 @@ export function computePlanV2(d) {
   const adj = { lose: -deficit, recomp: -0.1 * avgExp, maintain: 0, gain_clean: 0.1 * avgExp, gain_fast: 0.2 * avgExp }[d.goal];
   const avgTarget = avgExp + adj;
 
-  let targets;
+  const targets = {};
+  const trainKeys = keys.filter((k) => k !== "rest");
   if (d.target_mode === "fixed" || !trains) {
-    targets = { rest: round(avgTarget), train: round(avgTarget), leg: round(avgTarget) };
+    keys.forEach((k) => { targets[k] = round(avgTarget); });
   } else if (d.goal === "recomp" && count.rest > 0) {
     // Recomposición: los días de entreno quedan en mantenimiento y el déficit va en los descansos (con tope).
     const totalDeficit = -adj * 7;
     const perRest = Math.min(totalDeficit / count.rest, exp.rest * 0.25);
     const left = totalDeficit - perRest * count.rest;
-    const trainDays = count.train + count.leg;
-    const perTrain = trainDays ? left / trainDays : 0;
-    targets = { rest: round(exp.rest - perRest), train: round(exp.train - perTrain), leg: round(exp.leg - perTrain) };
+    const trainCount = trainKeys.reduce((t, k) => t + count[k], 0);
+    const perTrain = trainCount ? left / trainCount : 0;
+    targets.rest = round(exp.rest - perRest);
+    trainKeys.forEach((k) => { targets[k] = round(exp[k] - perTrain); });
   } else {
     // Mismo ajuste total, repartido según lo que cada día gasta.
-    targets = { rest: round(exp.rest + adj), train: round(exp.train + adj), leg: round(exp.leg + adj) };
+    keys.forEach((k) => { targets[k] = round(exp[k] + adj); });
   }
-  const weeklyTarget = targets.rest * count.rest + targets.train * count.train + targets.leg * count.leg;
+  const weeklyTarget = keys.reduce((t, k) => t + targets[k] * count[k], 0);
   const target = round(weeklyTarget / 7);
 
   const floor = FLOOR[d.sex];
-  const lowest = Math.min(...Object.entries(targets).filter(([k]) => count[k] > 0).map(([, v]) => v));
+  const lowest = Math.min(...keys.map((k) => targets[k]));
+  const hasWeights = trains && trainDays.some((n) => dp[n].kind !== "cardio");
   // warnings = riesgos de comer poco (piden confirmación). notes = avisos informativos, sin alarma.
   const warnings = [];
   const notes = [];
@@ -199,26 +233,26 @@ export function computePlanV2(d) {
     else if (lowest < bmr) warnings.push(`Tu día más bajo quedaría por debajo de tu metabolismo basal (${fmt(bmr)} kcal). Es sostenible por poco tiempo.`);
     if (deficit / avgExp > 0.35) warnings.push(`Es un recorte del ${Math.round((deficit / avgExp) * 100)}% de tu gasto diario. Consúltalo con un profesional.`);
   } else if (d.goal === "recomp") {
-    // El déficit de la recomposición es pequeño: solo se avisa si un día cae bajo el mínimo de referencia.
     if (lowest < floor) warnings.push(`Tu día más bajo quedaría en ${fmt(lowest)} kcal, por debajo del mínimo de referencia de ${fmt(floor)} kcal.`);
     else notes.push("Los días de entreno quedan cerca de tu mantenimiento y el ajuste va en los días de descanso.");
   } else if (d.goal === "gain_fast") {
-    notes.push(trains
+    notes.push(hasWeights
       ? "Con +20% la evidencia muestra que sumas sobre todo grasa, no más músculo. +10% rinde igual con menos grasa."
       : "Sin entrenar con pesas, el peso que ganes será mayormente grasa.");
-  } else if (d.goal === "gain_clean" && !trains) {
+  } else if (d.goal === "gain_clean" && !hasWeights) {
     notes.push("Sin entrenar con pesas, el peso que ganes será mayormente grasa.");
   }
 
-  // Proteína (g/kg): más alta al bajar o recomponer y al entrenar.
-  const gkg = trains
+  // Proteína (g/kg): más alta al bajar o recomponer y al entrenar con pesas.
+  const gkg = hasWeights
     ? { lose: 2.2, recomp: 2.2, maintain: 1.8, gain_clean: 2.0, gain_fast: 2.0 }[d.goal]
     : { lose: 1.8, recomp: 1.8, maintain: 1.6, gain_clean: 1.6, gain_fast: 1.6 }[d.goal];
   const protein = round(gkg * w);
 
   return {
-    age, bmr, base, burn, exp, count, targets, target, protein, floor, warnings, notes, trains,
-    legDays, plainDays,
+    age, bmr, base, burn, exp, count, keys, targets, target, protein, floor, warnings, notes, trains, hasWeights,
+    dayPlan: dp, trainDays,
+    legDays: trainDays.filter((n) => ["leg", "cwl"].includes(dp[n].key)),
     avgExp: round(avgExp),
     adjustment: round(adj),
     weeklyKg: Math.round(((weeklyTarget - weeklyExp) / 7700) * 100) / 100,
@@ -228,6 +262,7 @@ export function computePlanV2(d) {
 // Tipo de día según el calendario del plan (isodow 1–7).
 export function scheduledType(profile, dateStr) {
   const dow = ((new Date(dateStr + "T12:00:00").getDay() + 6) % 7) + 1;
+  if (profile.day_plan && Object.keys(profile.day_plan).length) return profile.day_plan[dow]?.key || "rest";
   if ((profile.leg_days || []).includes(dow)) return "leg";
   if ((profile.train_days || []).includes(dow)) return "train";
   return "rest";

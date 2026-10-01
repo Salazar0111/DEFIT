@@ -6,11 +6,14 @@ import { AVATARS, avatarSrc } from "../lib/avatars";
 import PhotoTile from "../components/PhotoTile";
 import { PALETTES, applyPalette } from "../lib/palettes";
 import {
-  DEFICITS, FRAMES, GOALS, LIFESTYLES, SESSION_MINUTES, TRAIN_TYPES, WEEKDAYS,
-  ageFrom, computePlanV2, fmt,
+  DAY_KEY_LABELS, DEFICITS, FRAMES, GOALS, LIFESTYLES, MUSCLE_LABELS, MUSCLE_ORDER, SESSION_MINUTES, TRAIN_TYPES, WEEKDAYS,
+  ageFrom, computePlanV2, dayKeyOf, fmt, normalizeDayPlan,
 } from "../lib/plan";
 
 const ease = [0.16, 1, 0.3, 1];
+
+// Firma del plan por día (días, tipo y músculos) para saber si cambió.
+const sig = (dp) => Object.keys(dp).sort().map((n) => `${n}:${dp[n].kind}:${[...(dp[n].muscles || [])].sort().join(",")}`).join("|");
 
 // edit = true: solo los pasos del plan (desde Perfil u Hoy), con opción de cancelar.
 export default function Onboarding({ profile, edit = false, onDone, onCancel }) {
@@ -27,9 +30,8 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
     frame: profile.frame || null,
     lifestyle: v2 ? profile.lifestyle : null,
     trains: v2 ? profile.trains : null,
-    train_type: v2 ? profile.train_type : null,
-    train_days: v2 ? profile.train_days || [] : [],
-    leg_days: v2 ? profile.leg_days || [] : [],
+    // Plan por día: { dow: { kind: "weights"|"cardio"|"both", muscles: [...] } }
+    day_plan: v2 && profile.trains ? normalizeDayPlan(profile) : {},
     session_min: profile.session_min || 60,
     intensity: profile.intensity || "moderate",
     target_mode: profile.target_mode || "by_day",
@@ -46,15 +48,15 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
   const set = (patch) => { setD((x) => ({ ...x, ...(typeof patch === "function" ? patch(x) : patch) })); setAck(false); };
   const deficit = d.goal === "lose" ? d.deficit : 0;
   const plan = useMemo(() => computePlanV2({ ...d, deficit }), [d, deficit]);
-  const weights = d.trains && d.train_type !== "cardio";
+  const trainDays = Object.keys(d.day_plan).map(Number).sort((a, b) => a - b);
+  const weights = !!d.trains && trainDays.some((n) => d.day_plan[n].kind !== "cardio");
 
   const steps = [
     !edit && "welcome",
     !edit && "palette",
     "sex", "birthdate", "body", "frame", "lifestyle", "trains",
-    d.trains && "ttype",
     d.trains && "days",
-    weights && d.train_days.length > 0 && "legs",
+    d.trains && trainDays.length > 0 && "dayplan",
     d.trains && "session",
     d.trains && "mode",
     "goal", "summary",
@@ -71,9 +73,8 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
     frame: !!d.frame,
     lifestyle: !!d.lifestyle,
     trains: d.trains !== null,
-    ttype: !!d.train_type,
-    days: d.train_days.length > 0,
-    legs: true,
+    days: trainDays.length > 0,
+    dayplan: trainDays.every((n) => d.day_plan[n].kind === "cardio" || d.day_plan[n].muscles.length > 0),
     session: true,
     mode: true,
     goal: !!d.goal && (!plan?.warnings.length || ack),
@@ -85,7 +86,9 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
   const finish = async () => {
     setSaving(true);
     setError("");
-    const trains = !!d.trains && d.train_days.length > 0;
+    const trains = !!d.trains && trainDays.length > 0;
+    const kinds = new Set(trainDays.map((n) => d.day_plan[n].kind));
+    const dayPlan = Object.fromEntries(trainDays.map((n) => [n, { kind: d.day_plan[n].kind, muscles: d.day_plan[n].muscles, key: dayKeyOf(d.day_plan[n].kind, d.day_plan[n].muscles) }]));
     const patch = {
       sex: d.sex,
       birthdate: d.birthdate,
@@ -96,9 +99,12 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
       activity: null,
       lifestyle: d.lifestyle,
       trains,
-      train_type: trains ? d.train_type : null,
-      train_days: trains ? d.train_days : [],
-      leg_days: trains && weights ? plan.legDays : [],
+      train_type: !trains ? null : kinds.size === 1 ? [...kinds][0] : "both",
+      train_days: trains ? trainDays : [],
+      leg_days: trains ? plan.legDays : [],
+      day_plan: trains ? dayPlan : null,
+      // La rutina se regenera desde el plan solo si cambiaron los días o los músculos.
+      ...(profile.routine && sig(profile.trains ? normalizeDayPlan(profile) : {}) !== sig(trains ? dayPlan : {}) ? { routine: null } : {}),
       session_min: trains ? d.session_min : null,
       intensity: trains ? d.intensity : null,
       goal: d.goal,
@@ -242,36 +248,24 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
               <>
                 <Head eyebrow="Tu entrenamiento" title="¿Entrenas?" text="Si entrenas, ajustamos tus calorías según los días y el tipo de entreno." />
                 <Option active={d.trains === true} title="Sí, entreno" text="Gimnasio, deporte o cardio con constancia."
-                  onClick={() => set({ trains: true, train_type: d.train_type || "weights" })} />
+                  onClick={() => set({ trains: true })} />
                 <Option active={d.trains === false} title="No por ahora" text="Sin rutina de ejercicio regular."
-                  onClick={() => set({ trains: false, goal: d.goal === "recomp" ? null : d.goal })} />
-              </>
-            )}
-
-            {current === "ttype" && (
-              <>
-                <Head eyebrow="Tu entrenamiento" title="¿Qué haces?" />
-                {TRAIN_TYPES.map((t) => (
-                  <Option key={t.id} active={d.train_type === t.id} title={t.label}
-                    onClick={() => set({ train_type: t.id, leg_days: t.id === "cardio" ? [] : d.leg_days, goal: t.id === "cardio" && d.goal === "recomp" ? null : d.goal })} />
-                ))}
+                  onClick={() => set({ trains: false, day_plan: {}, goal: d.goal === "recomp" ? null : d.goal })} />
               </>
             )}
 
             {current === "days" && (
               <>
-                <Head eyebrow="Tu entrenamiento" title="¿Qué días entrenas?" text="Toca los días de tu semana." />
+                <Head eyebrow="Tu entrenamiento" title="¿Qué días entrenas?" text="Toca los días de tu semana. En el siguiente paso eliges qué haces cada día." />
                 <div style={styles.weekRow}>
                   {WEEKDAYS.map((w) => {
-                    const on = d.train_days.includes(w.n);
+                    const on = !!d.day_plan[w.n];
                     return (
                       <motion.button key={w.n} whileTap={{ scale: 0.9 }} aria-pressed={on} aria-label={w.long}
                         onClick={() => set((x) => {
-                          const has = x.train_days.includes(w.n);
-                          return {
-                            train_days: has ? x.train_days.filter((n) => n !== w.n) : [...x.train_days, w.n].sort(),
-                            leg_days: has ? x.leg_days.filter((n) => n !== w.n) : x.leg_days,
-                          };
+                          const dp = { ...x.day_plan };
+                          if (dp[w.n]) delete dp[w.n]; else dp[w.n] = { kind: "weights", muscles: [] };
+                          return { day_plan: dp };
                         })}
                         style={{ ...styles.dayBtn, ...(on && styles.dayOn) }}>
                         {w.short}
@@ -280,30 +274,52 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
                   })}
                 </div>
                 <p className="muted" style={{ textAlign: "center" }}>
-                  {d.train_days.length ? `${d.train_days.length} ${d.train_days.length === 1 ? "día" : "días"} a la semana` : "Elige al menos un día"}
+                  {trainDays.length ? `${trainDays.length} ${trainDays.length === 1 ? "día" : "días"} a la semana` : "Elige al menos un día"}
                 </p>
               </>
             )}
 
-            {current === "legs" && (
+            {current === "dayplan" && (
               <>
-                <Head eyebrow="Tu entrenamiento" title="¿Cuáles son de pierna?" text="La pierna gasta más y pide más carbohidratos. Toca los días en que la entrenas, o ninguno." />
-                <div style={styles.weekRow}>
-                  {WEEKDAYS.map((w) => {
-                    const trains = d.train_days.includes(w.n);
-                    const on = d.leg_days.includes(w.n);
-                    return (
-                      <motion.button key={w.n} whileTap={{ scale: 0.9 }} disabled={!trains} aria-pressed={on} aria-label={w.long}
-                        onClick={() => set((x) => ({ leg_days: x.leg_days.includes(w.n) ? x.leg_days.filter((n) => n !== w.n) : [...x.leg_days, w.n].sort() }))}
-                        style={{ ...styles.dayBtn, ...(!trains && styles.dayOff), ...(on && styles.legOn) }}>
-                        {w.short}
-                      </motion.button>
-                    );
-                  })}
-                </div>
-                <p className="muted" style={{ textAlign: "center" }}>
-                  {d.leg_days.length ? `${d.leg_days.length} ${d.leg_days.length === 1 ? "día" : "días"} de pierna` : "Ningún día de pierna"}
-                </p>
+                <Head eyebrow="Tu entrenamiento" title="¿Qué haces cada día?" text="Elige pesas, cardio o ambos, y los músculos que trabajas. La pierna es la que más gasta." />
+                {trainDays.map((n) => {
+                  const e = d.day_plan[n];
+                  const w = WEEKDAYS.find((x) => x.n === n);
+                  const key = dayKeyOf(e.kind, e.muscles);
+                  return (
+                    <div key={n} className="glass" style={styles.dayCard}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                        <h2>{w.long}</h2>
+                        <span className="caption" style={{ fontWeight: 700 }}>{DAY_KEY_LABELS[key]}</span>
+                      </div>
+                      <div style={styles.kindRow}>
+                        {TRAIN_TYPES.map((t) => {
+                          const on = e.kind === t.id;
+                          return (
+                            <button key={t.id} aria-pressed={on} onClick={() => set((x) => ({ day_plan: { ...x.day_plan, [n]: { ...x.day_plan[n], kind: t.id, muscles: t.id === "cardio" ? [] : x.day_plan[n].muscles } } }))}
+                              style={{ ...styles.kindBtn, ...(on && styles.kindOn) }}>{t.label}</button>
+                          );
+                        })}
+                      </div>
+                      {e.kind !== "cardio" && (
+                        <div style={styles.muscles}>
+                          {MUSCLE_ORDER.map((m) => {
+                            const on = e.muscles.includes(m);
+                            return (
+                              <button key={m} aria-pressed={on} onClick={() => set((x) => {
+                                const cur = x.day_plan[n].muscles;
+                                return { day_plan: { ...x.day_plan, [n]: { ...x.day_plan[n], muscles: cur.includes(m) ? cur.filter((y) => y !== m) : [...cur, m] } } };
+                              })} style={{ ...styles.muscle, ...(on && (m === "legs" ? styles.muscleLeg : styles.muscleOn)) }}>
+                                {MUSCLE_LABELS[m]}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {e.kind !== "cardio" && e.muscles.length === 0 && <p className="caption">Elige al menos un músculo.</p>}
+                    </div>
+                  );
+                })}
               </>
             )}
 
@@ -429,9 +445,9 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
 
                   {plan.trains && d.target_mode === "by_day" && (
                     <div className="glass" style={{ padding: "var(--sp-2) var(--sp-4)" }}>
-                      <Row label="Día de descanso" value={`${fmt(plan.targets.rest)} kcal`} />
-                      {plan.plainDays.length > 0 && <Row label="Día de entreno" value={`${fmt(plan.targets.train)} kcal`} />}
-                      {plan.legDays.length > 0 && <Row label="Día de pierna" value={`${fmt(plan.targets.leg)} kcal`} last />}
+                      {plan.keys.map((k, i) => (
+                        <Row key={k} label={`Día de ${DAY_KEY_LABELS[k].toLowerCase()}`} value={`${fmt(plan.targets[k])} kcal`} last={i === plan.keys.length - 1} />
+                      ))}
                     </div>
                   )}
 
@@ -563,6 +579,14 @@ const styles = {
   dayOn: { background: "linear-gradient(180deg, var(--accent), var(--accent-strong))", borderColor: "transparent", color: "var(--on-accent)" },
   legOn: { background: "linear-gradient(180deg, #3ddc84, #1b8a4c)", borderColor: "transparent", color: "#ffffff" },
   dayOff: { opacity: 0.35 },
+  dayCard: { padding: "var(--sp-4)", borderRadius: "var(--r-md)", display: "flex", flexDirection: "column", gap: "var(--sp-3)" },
+  kindRow: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 4, padding: 4, borderRadius: "var(--r-pill)", background: "var(--field)", border: "1px solid var(--hairline)" },
+  kindBtn: { minHeight: 40, borderRadius: "var(--r-pill)", fontWeight: 700, fontSize: "var(--t-small)", color: "var(--text)" },
+  kindOn: { background: "linear-gradient(180deg, var(--accent), var(--accent-strong))", color: "var(--on-accent)" },
+  muscles: { display: "flex", flexWrap: "wrap", gap: 6 },
+  muscle: { padding: "8px 14px", borderRadius: 99, fontWeight: 700, fontSize: "var(--t-small)", color: "var(--text)", background: "var(--field)", border: "1px solid var(--hairline)" },
+  muscleOn: { background: "color-mix(in srgb, var(--accent) 22%, transparent)", borderColor: "color-mix(in srgb, var(--accent) 55%, transparent)" },
+  muscleLeg: { background: "color-mix(in srgb, #3ddc84 25%, transparent)", borderColor: "color-mix(in srgb, #3ddc84 60%, transparent)" },
   chip: {
     display: "flex", flexDirection: "column", alignItems: "center", padding: "12px 0", borderRadius: "var(--r-md)",
     background: "var(--field)", borderWidth: 1, borderStyle: "solid", borderColor: "var(--hairline)", color: "var(--text)",

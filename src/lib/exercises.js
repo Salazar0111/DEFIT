@@ -75,3 +75,28 @@ export function buildRoutine(template, trainDays) {
 
 // Fuerza estimada a 1 repetición (Epley). Fiable con 1–10 repeticiones.
 export const e1rm = (kg, reps) => (reps <= 1 ? kg : Math.round(kg * (1 + reps / 30) * 10) / 10);
+
+// Rutina generada desde el plan por día: cada día arma su sesión con los músculos elegidos.
+const BY_MUSCLE = { chest: ["bench", "incline-db", "chest-fly"], back: ["pulldown", "row", "seated-row"], shoulders: ["ohp", "lateral", "facepull"],
+  arms: ["curl", "triceps-push", "hammer"], legs: ["squat", "leg-press", "rdl", "leg-curl", "calf"], core: ["plank", "crunch"] };
+const MUSCLE_NAME = { chest: "Pecho", back: "Espalda", shoulders: "Hombros", arms: "Brazos", legs: "Pierna", core: "Core" };
+const PICKS = { legs: 4, core: 1 };
+
+export function sessionFromMuscles(kind, muscles, key) {
+  const cardio = kind !== "weights";
+  const label = muscles.length === 0 ? "Cardio" : muscles.length === 1 ? MUSCLE_NAME[muscles[0]] : muscles.length === 2 ? `${MUSCLE_NAME[muscles[0]]} y ${MUSCLE_NAME[muscles[1]].toLowerCase()}` : `${MUSCLE_NAME[muscles[0]]}, ${MUSCLE_NAME[muscles[1]].toLowerCase()} y más`;
+  const exercises = [];
+  muscles.forEach((m) => {
+    const n = muscles.length >= 4 ? 1 : PICKS[m] || (muscles.length === 1 ? 4 : 2);
+    BY_MUSCLE[m].slice(0, n).forEach((id) => exercises.push({ id, sets: id === "plank" ? 3 : m === "legs" ? 4 : 3, reps: id === "plank" ? 45 : m === "legs" ? 8 : 10 }));
+  });
+  return { name: kind === "both" ? `${label} + cardio` : label, kind, key, muscles, leg: muscles.includes("legs"), cardio, exercises };
+}
+
+export function buildRoutineFromPlan(dayPlan) {
+  const days = {};
+  Object.entries(dayPlan).forEach(([dow, e]) => {
+    days[dow] = sessionFromMuscles(e.kind, e.muscles || [], e.key);
+  });
+  return { template: "plan", name: "Según tu plan", days };
+}
