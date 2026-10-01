@@ -178,9 +178,9 @@ function Main({ profile, tab, setTab, patchProfile, onEditPlan }) {
   };
 
   const screens = {
-    home: <HomeScreen profile={profile} ch={ch} dt={dt} onEditPlan={editPlan} onOpenChallenges={() => setTab("challenges")} />,
+    home: <HomeScreen seen={seen} markSeen={markSeen} profile={profile} ch={ch} dt={dt} onEditPlan={editPlan} onOpenChallenges={() => setTab("challenges")} />,
     food: <FoodScreen profile={profile} dt={dt} />,
-    workout: <WorkoutScreen profile={profile} wk={wk} dt={dt} onEditPlan={editPlan} />,
+    workout: <WorkoutScreen seen={seen} markSeen={markSeen} profile={profile} wk={wk} dt={dt} onEditPlan={editPlan} />,
     challenges: <ChallengesScreen profile={profile} ch={ch} />,
     profile: <ProfileScreen profile={profile} ch={ch} onChange={patchProfile} onEditPlan={editPlan} planLocked={ch.planLocked} onReplayTour={replayTour} />,
   };

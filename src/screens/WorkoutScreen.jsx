@@ -8,13 +8,14 @@ import { avatarSrc } from "../lib/avatars";
 import Sheet from "../components/Sheet";
 import WorkoutSession from "../components/WorkoutSession";
 import RoutineEditor from "../components/RoutineEditor";
+import CalcExplainer from "../components/CalcExplainer";
 import { WEEKDAYS, cardioEquivalent } from "../lib/plan";
 import { buildRoutine, buildRoutineFromPlan, exerciseById, templatesFor } from "../lib/exercises";
 
 const ease = [0.16, 1, 0.3, 1];
 const dowOf = (day) => ((new Date(day + "T12:00:00").getDay() + 6) % 7) + 1;
 
-export default function WorkoutScreen({ profile, wk, dt, onEditPlan }) {
+export default function WorkoutScreen({ profile, wk, dt, onEditPlan, seen = () => true, markSeen = () => {} }) {
   const [session, setSession] = useState(null);
   const [picking, setPicking] = useState(false);
   const [changing, setChanging] = useState(false);
@@ -22,6 +23,7 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan }) {
   const [saved, setSaved] = useState(false);
   const [cardioKcal, setCardioKcal] = useState("");
   const [cardioMinutes, setCardioMinutes] = useState("");
+  const [intro, setIntro] = useState(null); // explicación antes del primer entreno
   const [last, setLast] = useState({});
   const [best, setBest] = useState({});
   const [newRecords, setNewRecords] = useState(null);
@@ -41,6 +43,9 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan }) {
   const todayDow = dowOf(today);
   const plannedToday = routine?.days?.[todayDow];
   const weekDone = new Set(wk.logs.map((l) => dowOf(l.day)));
+  const estOf = (s) => (s && (profile.plan_version || 1) >= 2 ? profile.burns?.[s.key] || 0 : 0);
+  // Datos para explicar la cuenta de una sesión (aunque el día aún no esté marcado con su tipo).
+  const infoOf = (s) => ({ type: s.key, est: estOf(s), adjust: 0, watch: null, target: profile.targets?.[s.key] ?? profile.target_kcal });
 
   if (!profile.trains || days.length === 0) {
     return (
@@ -176,13 +181,20 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan }) {
               {plannedToday.cardio && (
                 <p className="caption" style={{ display: "flex", alignItems: "center", gap: 6 }}><HeartPulse size={15} strokeWidth={2} /> Incluye cardio al terminar.</p>
               )}
-              <button className="btn btn-primary" style={{ minHeight: 60, fontSize: 18 }} onClick={() => start(plannedToday)}>
+              {estOf(plannedToday) > 0 && (
+                <p className="caption">Tu meta de hoy ya incluye unas <b className="num">{estOf(plannedToday).toLocaleString("es-CO")} kcal</b> de este entreno. Al terminar podrás anotar las de tu reloj.</p>
+              )}
+              <button className="btn btn-primary" style={{ minHeight: 60, fontSize: 18 }}
+                onClick={() => (estOf(plannedToday) > 0 && !seen("startcalc") ? setIntro(plannedToday) : start(plannedToday))}>
                 <Play size={20} strokeWidth={2.2} /> {wk.trainedToday ? "Entrenar otra vez" : "Empezar"}
               </button>
             </>
           ) : (
             <>
               <p className="muted" style={{ display: "flex", alignItems: "center", gap: 8 }}><HeartPulse size={18} strokeWidth={1.8} /> Planeado: {profile.session_min || 45} minutos de cardio.</p>
+              {estOf(plannedToday) > 0 && (
+                <p className="caption">Tu meta ya incluye unas <b className="num">{estOf(plannedToday).toLocaleString("es-CO")} kcal</b> de este cardio. Los minutos o las calorías que anotes reemplazan esa estimación: solo se suma la diferencia.</p>
+              )}
               <div className="field">
                 <label htmlFor="cardio-min">¿Cuántos minutos hiciste?</label>
                 <input id="cardio-min" type="number" inputMode="numeric" min="1" max="600" placeholder={String(profile.session_min || 45)} value={cardioMinutes} onChange={(e) => setCardioMinutes(e.target.value)} />
@@ -240,10 +252,21 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan }) {
               sameCount={Object.values(routine.days).filter((d) => d.name === routine.days[editingDow].name).length}
               onSave={saveEdit} onClose={() => setEditingDow(null)} />
           )}
+          <Sheet open={!!intro} onClose={() => setIntro(null)} title="Antes de empezar">
+            {intro && (
+              <>
+                <CalcExplainer profile={profile} info={infoOf(intro)} />
+                <button className="btn btn-primary btn-block" style={{ marginBottom: "var(--sp-3)" }}
+                  onClick={() => { const s = intro; markSeen("startcalc"); setIntro(null); start(s); }}>
+                  Entendido, empezar
+                </button>
+              </>
+            )}
+          </Sheet>
           <Sheet open={picking} onClose={() => setPicking(false)} title="¿Qué entrenaste?">
             <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-2)", paddingBottom: "var(--sp-3)" }}>
               {Object.values(routine.days).filter((d, i, a) => a.findIndex((x) => x.name === d.name) === i).map((d) => (
-                <button key={d.name} className="glass" style={{ ...styles.pick }} onClick={() => { setPicking(false); start(d); }}>
+                <button key={d.name} className="glass" style={{ ...styles.pick }} onClick={() => { setPicking(false); estOf(d) > 0 && !seen("startcalc") && d.exercises?.length ? setIntro(d) : start(d); }}>
                   <span style={{ fontWeight: 700 }}>{d.name}</span>
                   <span className="caption">{d.exercises.length} ejercicios</span>
                 </button>
@@ -290,7 +313,7 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan }) {
           </Sheet>
           <AnimatePresence>
             {session && (
-              <WorkoutSession key="session" session={session} lastSets={last} best={best} onCancel={() => setSession(null)} onFinish={finishSession} />
+              <WorkoutSession key="session" session={session} lastSets={last} best={best} estKcal={estOf(session)} onCancel={() => setSession(null)} onFinish={finishSession} />
             )}
           </AnimatePresence>
         </>,

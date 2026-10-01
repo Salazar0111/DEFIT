@@ -340,6 +340,12 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
                 <p className="eyebrow" style={{ marginTop: "var(--sp-3)" }}>Intensidad</p>
                 <Option active={d.intensity === "moderate"} title="Moderada" text="Terminas cansado, pero con reserva." onClick={() => set({ intensity: "moderate" })} />
                 <Option active={d.intensity === "intense"} title="Intensa" text="Llegas cerca del límite en casi todas las series." onClick={() => set({ intensity: "intense" })} />
+                <div style={styles.note}>
+                  <Info size={18} strokeWidth={2} style={{ color: "var(--accent)", flexShrink: 0, marginTop: 2 }} />
+                  <p style={{ fontSize: "var(--t-small)", lineHeight: 1.5 }}>
+                    Con esto estimamos cuántas calorías gastas en cada entreno y las sumamos a tu meta de comida. Después podrás corregirlo con las calorías de tu reloj o los minutos de cardio: solo se suma la diferencia, no el total.
+                  </p>
+                </div>
               </>
             )}
 

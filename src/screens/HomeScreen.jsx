@@ -2,6 +2,8 @@ import { motion } from "motion/react";
 import { ChevronRight, Lock, SlidersHorizontal, Swords } from "lucide-react";
 import { avatarSrc } from "../lib/avatars";
 import { challengeTitle } from "./ChallengesScreen";
+import CalcExplainer, { Equation, dayMath } from "../components/CalcExplainer";
+import { Info } from "lucide-react";
 import { MUSCLE_LABELS, MUSCLE_ORDER, cardioEquivalent, dayKeyOf, fmt, kindOfKey } from "../lib/plan";
 import { useFood } from "../lib/useFood";
 import { createPortal } from "react-dom";
@@ -17,7 +19,7 @@ import { dayKey, totals } from "../lib/food";
 
 const ease = [0.16, 1, 0.3, 1];
 
-export default function HomeScreen({ profile, ch, dt, onEditPlan, onOpenChallenges }) {
+export default function HomeScreen({ profile, ch, dt, onEditPlan, onOpenChallenges, seen = () => true, markSeen = () => {} }) {
   const today = dayKey(new Date(), profile.timezone);
   const { entries } = useFood(profile, today);
   const t = totals(entries);
@@ -60,7 +62,7 @@ export default function HomeScreen({ profile, ch, dt, onEditPlan, onOpenChalleng
 
       <Buddy profile={profile} mood={mood} eaten={eaten} target={dayGoal} />
 
-      {type && <DayTypePicker profile={profile} dt={dt} today={today} />}
+      {type && <DayTypePicker profile={profile} dt={dt} today={today} seen={seen} markSeen={markSeen} />}
 
       <WeightCard profile={profile} onEditPlan={onEditPlan} />
 
@@ -159,8 +161,9 @@ function WeightCard({ profile, onEditPlan }) {
 }
 
 // Qué haces hoy: descanso, pesas, cardio o ambos, más los músculos que trabajas. Cambia la meta al instante.
-function DayTypePicker({ profile, dt, today }) {
+function DayTypePicker({ profile, dt, today, seen, markSeen }) {
   const [error, setError] = useState("");
+  const [explain, setExplain] = useState(false);
   const { type, target, adjust, est, watch, muscles } = dt.info(today);
   const kind = kindOfKey(type);
   const [kcal, setKcal] = useState("");
@@ -186,12 +189,16 @@ function DayTypePicker({ profile, dt, today }) {
   const toggleMuscle = (m) => apply(kind, muscles.includes(m) ? muscles.filter((x) => x !== m) : [...muscles, m]);
   return (
     <section className="glass" style={{ padding: "var(--sp-4) var(--sp-5)", display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "var(--sp-2)" }}>
         <p className="eyebrow">Hoy es día de</p>
-        <motion.span key={target} className="num caption" initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ fontWeight: 700 }}>
-          Meta {fmt(target)} kcal
-        </motion.span>
+        <button onClick={() => setExplain(true)} aria-label="¿Cómo se calcula tu meta?"
+          style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "var(--t-caption)", fontWeight: 700, color: "var(--accent)" }}>
+          <Info size={16} strokeWidth={2} /> ¿Cómo se calcula?
+        </button>
       </div>
+      <motion.div key={target} initial={{ opacity: 0.4 }} animate={{ opacity: 1 }}>
+        <Equation math={dayMath(profile, { type, target, est, adjust, watch })} compact />
+      </motion.div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 4, padding: 4, borderRadius: "var(--r-pill)", background: "var(--field)", border: "1px solid var(--hairline)" }}>
         {KINDS.map((o) => {
           const active = o.id === kind;
@@ -254,6 +261,26 @@ function DayTypePicker({ profile, dt, today }) {
         </form>
       )}
       {error && <p role="alert" style={{ color: "var(--danger)", fontWeight: 700, fontSize: "var(--t-small)" }}>{error}</p>}
+
+      {kind !== "rest" && est > 0 && !seen("daycalc") && (
+        <div style={{ padding: "var(--sp-3) var(--sp-4)", borderRadius: "var(--r-md)", background: "color-mix(in srgb, var(--accent) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--accent) 30%, transparent)", display: "flex", flexDirection: "column", gap: "var(--sp-2)" }}>
+          <p style={{ fontWeight: 700, fontSize: "var(--t-small)" }}>Tu meta ya incluye este entreno</p>
+          <p className="muted" style={{ fontSize: "var(--t-small)", lineHeight: 1.45 }}>
+            La app estima unas {fmt(est)} kcal. Si quieres afinar, anota lo que marcó tu reloj abajo: solo se suma la diferencia, no el total.
+          </p>
+          <div style={{ display: "flex", gap: "var(--sp-2)" }}>
+            <button className="btn btn-primary" style={{ minHeight: 36, padding: "0 14px", fontSize: "var(--t-caption)" }} onClick={() => markSeen("daycalc")}>Entendido</button>
+            <button className="btn btn-glass" style={{ minHeight: 36, padding: "0 14px", fontSize: "var(--t-caption)" }} onClick={() => setExplain(true)}>Ver cómo</button>
+          </div>
+        </div>
+      )}
+
+      {createPortal(
+        <Sheet open={explain} onClose={() => setExplain(false)} title="Cómo se calcula tu meta">
+          {explain && <CalcExplainer profile={profile} info={{ type, target, est, adjust, watch }} />}
+        </Sheet>,
+        document.body
+      )}
     </section>
   );
 }

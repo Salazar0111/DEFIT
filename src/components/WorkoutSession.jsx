@@ -10,7 +10,7 @@ const kgFmt = (n) => Number(n).toLocaleString("es-CO", { maximumFractionDigits: 
 const clock = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
 // Pantalla de gym: un ejercicio a la vez, botones grandes, el peso de la última vez ya cargado.
-export default function WorkoutSession({ session, lastSets, best = {}, onFinish, onCancel }) {
+export default function WorkoutSession({ session, lastSets, best = {}, estKcal = 0, onFinish, onCancel }) {
   const exercises = session.exercises.map((e) => ({ ...e, info: exerciseById(e.id) })).filter((e) => e.info);
   const [idx, setIdx] = useState(0);
   const [done, setDone] = useState([]); // series hechas: { exercise_id, exercise_name, set_no, kg, reps }
@@ -181,7 +181,12 @@ export default function WorkoutSession({ session, lastSets, best = {}, onFinish,
               {done.length > 0 && (
                 <div className="field">
                   <label htmlFor="gym-watch">Calorías según tu reloj (opcional)</label>
-                  <input id="gym-watch" type="number" inputMode="numeric" min="0" max="5000" placeholder="Ej: 350" value={watchKcal} onChange={(e) => setWatchKcal(e.target.value)} />
+                  <input id="gym-watch" type="number" inputMode="numeric" min="0" max="5000" placeholder={estKcal ? `Estimado: ${estKcal}` : "Ej: 350"} value={watchKcal} onChange={(e) => setWatchKcal(e.target.value)} />
+                  {estKcal > 0 && (
+                    <p className="caption" style={{ lineHeight: 1.45 }}>
+                      Tu meta ya incluye unas {estKcal.toLocaleString("es-CO")} kcal de este entreno. Lo que anotes reemplaza esa estimación: solo se suma la diferencia, no el total.
+                    </p>
+                  )}
                 </div>
               )}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--sp-2)" }}>
