@@ -2,6 +2,7 @@ import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { BookOpen, Check, ChevronDown, Eye, Lock, LogOut, SlidersHorizontal } from "lucide-react";
 import MethodExplainer from "../components/MethodExplainer";
+import UsernamePrompt from "../components/UsernamePrompt";
 import { GOALS, computePlanV2, fmt } from "../lib/plan";
 import { createPortal } from "react-dom";
 import Sheet from "../components/Sheet";
@@ -19,6 +20,7 @@ export default function ProfileScreen({ profile, ch, onChange, onEditPlan, planL
   const [preview, setPreview] = useState(false);
   const [settings, setSettings] = useState(false);
   const [method, setMethod] = useState(false);
+  const [editUser, setEditUser] = useState(false);
   const [planError, setPlanError] = useState("");
 
   const save = async (patch) => {
@@ -59,6 +61,16 @@ export default function ProfileScreen({ profile, ch, onChange, onEditPlan, planL
           <PersonStats uid={profile.id} ch={ch} />
         </section>
       )}
+
+      <section className="glass" style={{ ...styles.section, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: "var(--sp-3)" }}>
+        <div style={{ minWidth: 0 }}>
+          <p className="eyebrow">Tu usuario</p>
+          <p style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.02em", overflow: "hidden", textOverflow: "ellipsis" }}>{profile.username ? `@${profile.username}` : "Sin elegir"}</p>
+        </div>
+        <button className="btn btn-glass" style={{ minHeight: 36, padding: "0 14px", fontSize: "var(--t-caption)" }} onClick={() => setEditUser(true)}>
+          {profile.username ? "Cambiar" : "Elegir"}
+        </button>
+      </section>
 
       <section className="glass" style={styles.section}>
         <div style={styles.head}>
@@ -177,6 +189,12 @@ export default function ProfileScreen({ profile, ch, onChange, onEditPlan, planL
           )}
         </AnimatePresence>
       </section>
+
+      {createPortal(
+        <UsernamePrompt key={profile.username || "new"} profile={profile} open={editUser} onClose={() => setEditUser(false)}
+          onSaved={(username) => { onChange({ username }); setEditUser(false); }} />,
+        document.body
+      )}
 
       {createPortal(
         <Sheet open={method} onClose={() => setMethod(false)} title="Cómo estimamos tus calorías">

@@ -72,7 +72,7 @@ export function useChallenges(profile) {
     if (demo) { setState({ loading: false, ...demoData(profile, today) }); return; }
     const [{ data: mine }, { data: friends }, { data: medals }, { data: requests }, { data: pokes }] = await Promise.all([
       supabase.from("challenge_members").select("challenge_id").eq("user_id", profile.id),
-      supabase.from("profiles").select("id, name, avatar, onboarded").neq("id", profile.id),
+      supabase.from("profiles").select("id, name, avatar, onboarded, username").neq("id", profile.id),
       supabase.from("medals").select("*").eq("user_id", profile.id).order("earned_at", { ascending: false }),
       supabase.rpc("my_friend_requests"),
       supabase.from("pokes").select("*").eq("to_user", profile.id).eq("seen", false).order("created_at"),
@@ -189,7 +189,7 @@ export function useChallenges(profile) {
       setState((s) => {
         const r = s.requests.find((x) => x.id === id);
         return { ...s, requests: s.requests.filter((x) => x.id !== id),
-          friends: accept && r ? [...s.friends, { id: r.user_id, name: r.name, avatar: r.avatar, onboarded: true }] : s.friends,
+          friends: accept && r ? [...s.friends, { id: r.user_id, name: r.name, username: r.username, avatar: r.avatar, onboarded: true }] : s.friends,
           people: accept && r ? { ...s.people, [r.user_id]: { id: r.user_id, name: r.name, avatar: r.avatar } } : s.people };
       });
       return;
@@ -245,7 +245,7 @@ export function useChallenges(profile) {
 // ─── Datos de demo ─────────────────────────────────────────────────────────
 function demoData(profile, today) {
   const showMoments = new URLSearchParams(location.search).has("final"); // ?demo&final muestra las celebraciones
-  const claudia = { id: "c", name: "Claudia", avatar: "a5", onboarded: true };
+  const claudia = { id: "c", name: "Claudia", username: "clau_fit", avatar: "a5", onboarded: true };
   const d = (n) => shiftDay(today, n);
   const totals = [
     ...[-3, -2, -1].map((n, i) => ({ user_id: profile.id, day: d(n), kcal: [2100, 2400, 2050][i] })),
@@ -255,8 +255,8 @@ function demoData(profile, today) {
   const mk = (c) => withProgress(c, totals, today);
   const group = new URLSearchParams(location.search).has("grupo");
   const extra = [
-    { id: "d", name: "Dani", avatar: "a6", onboarded: true },
-    { id: "e", name: "Vale", avatar: "a2", onboarded: true },
+    { id: "d", name: "Dani", username: "dani", avatar: "a6", onboarded: true },
+    { id: "e", name: "Vale", username: "vale22", avatar: "a2", onboarded: true },
   ];
   if (group) {
     totals.push(
@@ -302,7 +302,7 @@ function demoData(profile, today) {
     { id: 1, kind: "challenge_won", actor: profile.id, targets: ["c"], data: { days: 6, mode: "duration", length: 7 }, created_at: ago(60 * 24 * 14) },
   ];
   const requests = [
-    { id: 101, direction: "in", user_id: "m", name: "Mateo", avatar: "a4", email: null, created_at: ago(30) },
+    { id: 101, direction: "in", user_id: "m", name: "Mateo", username: "mateo_r", avatar: "a4", email: null, created_at: ago(30) },
     { id: 102, direction: "out", user_id: null, name: null, avatar: null, email: "hassani@correo.com", created_at: ago(60 * 20) },
   ];
   const pokes = showMoments ? [

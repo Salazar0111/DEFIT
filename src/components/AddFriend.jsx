@@ -35,7 +35,7 @@ export function Requests({ ch }) {
               <img src={avatarSrc(r.avatar)} alt="" style={{ width: 48, height: 48, borderRadius: "50%", flexShrink: 0 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontWeight: 700 }}>{r.name}</p>
-                <p className="caption">Quiere ser tu amigo</p>
+                <p className="caption">{r.username ? `@${r.username} · ` : ""}Quiere ser tu amigo</p>
               </div>
               <button className="btn btn-glass" style={{ minHeight: 38, width: 38, padding: 0 }} aria-label={`Rechazar a ${r.name}`} onClick={() => answer(r.id, false)}>
                 <X size={17} strokeWidth={2.2} />
@@ -64,7 +64,7 @@ export default function AddFriend({ profile, ch }) {
     e.preventDefault();
     setBusy(true); setMsg(null);
     try {
-      const to = email.trim().toLowerCase();
+      const to = email.trim().toLowerCase().replace(/\s+/g, "");
       const r = await ch.sendFriendRequest(to);
       setMsg({
         ok: r !== "not_found" && r !== "self",
@@ -72,8 +72,8 @@ export default function AddFriend({ profile, ch }) {
           sent: "Solicitud enviada. Le llegará un aviso.",
           friends: "Ya son amigos.",
           invited: "Listo: ya puede registrarse con ese correo y la solicitud lo espera.",
-          self: "Ese es tu propio correo.",
-          not_found: "No encontramos a nadie con ese correo en DEFIT.",
+          self: "Ese eres tú.",
+          not_found: "No encontramos a nadie con ese usuario o correo en DEFIT.",
         }[r] || "Listo.",
       });
       setLastInvited(r === "invited" ? to : null);
@@ -89,13 +89,13 @@ export default function AddFriend({ profile, ch }) {
     <section className="glass" style={{ padding: "var(--sp-5)", display: "flex", flexDirection: "column", gap: "var(--sp-4)" }}>
       <h2>Agregar amigo</h2>
       <p className="muted" style={{ fontSize: "var(--t-small)" }}>
-        Escribe el correo con el que se registró. Cuando acepte tu solicitud podrán verse los perfiles y retarse.
+        Escribe su @usuario o el correo con el que se registró. Cuando acepte tu solicitud podrán verse los perfiles y retarse.
       </p>
 
       <form onSubmit={send} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "var(--sp-2)", alignItems: "end" }}>
         <div className="field">
-          <label htmlFor="friend-email">Correo de tu amigo</label>
-          <input id="friend-email" type="email" inputMode="email" autoComplete="off" placeholder="amigo@correo.com"
+          <label htmlFor="friend-email">Usuario o correo</label>
+          <input id="friend-email" type="text" inputMode="email" autoCapitalize="none" autoCorrect="off" autoComplete="off" placeholder="@usuario o amigo@correo.com"
             value={email} onChange={(e) => setEmail(e.target.value)} required />
         </div>
         <button className="btn btn-primary" disabled={busy || !email} aria-label="Enviar solicitud">
@@ -124,7 +124,7 @@ export default function AddFriend({ profile, ch }) {
           {outgoing.map((r) => (
             <div key={r.id} style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)", padding: "10px 0", borderTop: "1px solid var(--hairline)" }}>
               {r.avatar && <img src={avatarSrc(r.avatar)} alt="" style={{ width: 30, height: 30, borderRadius: "50%" }} />}
-              <span style={{ flex: 1, minWidth: 0, fontSize: "var(--t-small)", overflow: "hidden", textOverflow: "ellipsis" }}>{r.name || r.email}</span>
+              <span style={{ flex: 1, minWidth: 0, fontSize: "var(--t-small)", overflow: "hidden", textOverflow: "ellipsis" }}>{r.name ? `${r.name}${r.username ? ` · @${r.username}` : ""}` : r.email}</span>
               {r.email ? (
                 <button className="caption" onClick={() => share(profile.name)} style={{ display: "flex", alignItems: "center", gap: 4, fontWeight: 700 }}>
                   <Clock size={14} strokeWidth={2} /> Aún sin registrarse · <Send size={13} strokeWidth={2} /> Link

@@ -16,6 +16,7 @@ import ChallengesScreen from "./screens/ChallengesScreen";
 import Sheet from "./components/Sheet";
 import Tour from "./components/Tour";
 import TabTip from "./components/TabTip";
+import UsernamePrompt from "./components/UsernamePrompt";
 import Medal from "./components/Medal";
 import { useChallenges } from "./lib/useChallenges";
 import { useDayTypes } from "./lib/useDayTypes";
@@ -34,7 +35,7 @@ const V1 = params.get("demo") === "v1"; // cuenta antigua: plan v1, sin plan por
 const DEMO_PROFILE0 = params.get("demo") === "nuevo"
   ? { id: "demo", name: "Brayan", avatar: "a1", palette: "noche-azul", onboarded: false }
   : {
-      id: "demo", name: "Brayan", avatar: "a3", palette: "noche-azul", onboarded: true,
+      id: "demo", name: "Brayan", username: params.has("sinusuario") ? null : "brayan", avatar: "a3", palette: "noche-azul", onboarded: true,
       sex: "m", birthdate: "1995-05-10", height_cm: 178, weight_kg: 92, frame: "medium",
       activity: null, deficit: 600, bmr: 1883, tdee: 2431, target_kcal: 1831, protein_g: 184, plan_version: 2,
       lifestyle: "seated", trains: true, train_type: "weights", train_days: [1, 2, 4, 5, 6], leg_days: [2, 5],
@@ -182,6 +183,8 @@ function Main({ profile, tab, setTab, patchProfile, onEditPlan }) {
   // Tras guardar la primera comida se ofrecen las notificaciones (una sola vez; si las deja para después, no se insiste).
   const [offerNotif, setOfferNotif] = useState(false);
   const [notifMsg, setNotifMsg] = useState("");
+  // Quien aún no tiene usuario lo elige una vez por sesión (puede dejarlo para después).
+  const [askUsername, setAskUsername] = useState(true);
   useEffect(() => {
     const onMeal = () => {
       if (seen("notifask")) return;
@@ -270,6 +273,9 @@ function Main({ profile, tab, setTab, patchProfile, onEditPlan }) {
           <button className="btn btn-text" onClick={closeFaceId}>Ahora no</button>
         </div>
       </Sheet>
+
+      <UsernamePrompt profile={profile} open={askUsername && !profile.username && !showTour && !result && !newMedal && !poke}
+        onClose={() => setAskUsername(false)} onSaved={(username) => { patchProfile({ username }); setAskUsername(false); }} />
 
       <Sheet open={offerNotif && !offerFaceId && !showTour && !result && !newMedal && !poke} onClose={closeNotif} title="Recordatorios">
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "var(--sp-3)", textAlign: "center", paddingBottom: "var(--sp-4)" }}>

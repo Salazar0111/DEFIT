@@ -102,6 +102,7 @@ export function PersonSheetContent({ person, ch, me, preview = false, onRemoved 
           style={{ width: 88, height: 88, borderRadius: "50%", boxShadow: "0 0 0 1px var(--hairline)" }} />
         <div>
           <h1>{isMe ? "Tú" : person.name}</h1>
+          {person.username && <p className="caption" style={{ fontWeight: 700 }}>@{person.username}</p>}
           {preview && <p className="caption">Así te ven tus amigos</p>}
           {canPoke && <p className="caption">Tienen un reto activo</p>}
         </div>

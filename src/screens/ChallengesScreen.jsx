@@ -446,7 +446,7 @@ function FriendsList({ ch, me, onOpenPerson, onChallenge }) {
             <button onClick={() => onOpenPerson(f.id)} style={{ display: "flex", alignItems: "center", gap: "var(--sp-3)", flex: 1, minWidth: 0, textAlign: "left", color: "var(--text)" }}>
               <img src={avatarSrc(f.avatar)} alt="" style={{ width: 52, height: 52, borderRadius: "50%", flexShrink: 0 }} />
               <div style={{ minWidth: 0 }}>
-                <p style={{ fontWeight: 700 }}>{f.name}</p>
+                <p style={{ fontWeight: 700 }}>{f.name}{f.username && <span className="caption" style={{ fontWeight: 400 }}> · @{f.username}</span>}</p>
                 <p className="caption">
                   {s ? `Racha ${s.current_streak} ${s.current_streak === 1 ? "día" : "días"} · ${s.challenges_won} ${s.challenges_won === 1 ? "reto ganado" : "retos ganados"}` : "…"}
                 </p>
