@@ -130,14 +130,30 @@ const MET = {
   both: { moderate: 4.5, intense: 5.5 },
   cwl: { moderate: 5.25, intense: 6.5 },
 };
-const KEY_MET = { train: "weights", leg: "leg", cardio: "cardio", cw: "both", cwl: "cwl" };
 
 const round = (n) => Math.round(n);
 
-// type: "leg", "weights", "cardio", "both" o "cwl".
-export function trainKcal(type, intensity, minutes, weight) {
-  const met = MET[type]?.[intensity] ?? 0;
-  return Math.max(0, round((met - 1) * weight * (minutes / 60)));
+// Trotadora: ecuaciones metabólicas del ACSM según velocidad e inclinación.
+//   Caminar: VO2 = 0,1·v + 1,8·v·pendiente + 3,5     Correr: VO2 = 0,2·v + 0,9·v·pendiente + 3,5
+// (v en m/min, pendiente como fracción, VO2 en ml/kg/min; 1 MET = 3,5). Caminar es válido hasta ~7 km/h.
+export const CARDIO_DEFAULT = { mode: "run", speed: 8, incline: 1 };
+export function treadmillMET({ mode = "run", speed = 8, incline = 0 } = {}) {
+  const v = (Number(speed) * 1000) / 60;
+  const g = Math.max(0, Number(incline) || 0) / 100;
+  const vo2 = mode === "walk" ? 0.1 * v + 1.8 * v * g + 3.5 : 0.2 * v + 0.9 * v * g + 3.5;
+  return vo2 / 3.5;
+}
+
+// MET de un tipo de día. El cardio usa la trotadora de la persona; sin ella, un valor genérico.
+function keyMet(key, intensity, cardio) {
+  const cardioMet = cardio ? treadmillMET(cardio) : MET.cardio[intensity];
+  const w = MET.weights[intensity], l = MET.leg[intensity];
+  return { train: w, leg: l, cardio: cardioMet, cw: (w + cardioMet) / 2, cwl: (l + cardioMet) / 2 }[key] ?? 0;
+}
+
+// Calorías de un entreno: (MET − 1) × peso × horas. key: train, leg, cardio, cw o cwl.
+export function burnKcal(key, intensity, minutes, weight, cardio) {
+  return Math.max(0, round((keyMet(key, intensity, cardio) - 1) * weight * (minutes / 60)));
 }
 
 // Metabolismo basal: Katch-McArdle si se conoce la grasa corporal; si no, Mifflin-St Jeor con ajuste por contextura.
@@ -191,7 +207,7 @@ export function computePlanV2(d) {
   const burn = { rest: 0 };
   const exp = { rest: base };
   DAY_KEY_ORDER.filter((k) => k !== "rest").forEach((k) => {   // pero cualquier tipo se puede elegir un día
-    burn[k] = trainKcal(KEY_MET[k], intensity, minutes, w);
+    burn[k] = burnKcal(k, intensity, minutes, w, d.cardio);
     exp[k] = base + burn[k];
   });
   const weeklyExp = keys.reduce((t, k) => t + exp[k] * count[k], 0);
@@ -277,15 +293,16 @@ export function watchAdjust(est, watch) {
 
 // Cardio real del día: kcal equivalentes del día completo según los minutos que hiciste.
 // Cardio solo: reemplaza la estimación. Cardio y pesas: se cambia la mitad de cardio estimada por la real.
-export function cardioEquivalent(profile, key, minutes) {
+export function cardioEquivalent(profile, key, minutes, cardioOverride) {
+  const cardio = cardioOverride || profile.cardio;
   const m = Number(minutes) || 0;
   const est = profile.burns?.[key] || 0;
   if (m <= 0 || est <= 0) return 0;
   const w = Number(profile.weight_kg) || 0;
   const intensity = profile.intensity || "moderate";
-  const actual = trainKcal("cardio", intensity, m, w);
+  const actual = burnKcal("cardio", intensity, m, w, cardio);
   if (key === "cardio") return actual;
-  const planned = trainKcal("cardio", intensity, (profile.session_min || defaultMinutes) / 2, w);
+  const planned = burnKcal("cardio", intensity, (profile.session_min || defaultMinutes) / 2, w, profile.cardio);
   return Math.max(0, est - planned + actual);
 }
 

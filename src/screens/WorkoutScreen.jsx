@@ -23,6 +23,14 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan, seen = () =
   const [saved, setSaved] = useState(false);
   const [cardioKcal, setCardioKcal] = useState("");
   const [cardioMinutes, setCardioMinutes] = useState("");
+  const [cardioSpeed, setCardioSpeed] = useState("");
+  const [cardioIncline, setCardioIncline] = useState("");
+  // Velocidad e inclinación de esta sesión (si no las cambias, las de tu plan).
+  const sessionCardio = () => (profile.cardio ? {
+    mode: profile.cardio.mode,
+    speed: Number(cardioSpeed) || profile.cardio.speed,
+    incline: cardioIncline === "" ? profile.cardio.incline : Number(cardioIncline),
+  } : undefined);
   const [intro, setIntro] = useState(null); // explicación antes del primer entreno
   const [last, setLast] = useState({});
   const [best, setBest] = useState({});
@@ -41,7 +49,8 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan, seen = () =
   const days = profile.train_days || [];
   const hasPlan = !!profile.day_plan && Object.keys(profile.day_plan).length > 0;
   const todayDow = dowOf(today);
-  const plannedToday = routine?.days?.[todayDow];
+  const [picked, setPicked] = useState(null);   // sesión de cardio elegida con "Hice otra cosa"
+  const plannedToday = picked || routine?.days?.[todayDow];
   const weekDone = new Set(wk.logs.map((l) => dowOf(l.day)));
   const estOf = (s) => (s && (profile.plan_version || 1) >= 2 ? profile.burns?.[s.key] || 0 : 0);
   // Datos para explicar la cuenta de una sesión (aunque el día aún no esté marcado con su tipo).
@@ -96,8 +105,8 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan, seen = () =
       await wk.finish({ name: s.name, leg: false, durationS: min * 60, sets: [], watchKcal: k, cardioMin: min });
       // Con reloj, manda el reloj; sin reloj, los minutos que hiciste.
       if (k > 0) await dt.setWatchKcal(today, (dt.watch?.[today] || 0) + k).catch(() => {});
-      else await dt.setWatchKcal(today, cardioEquivalent(profile, s.key || "cardio", min)).catch(() => {});
-      setCardioKcal(""); setCardioMinutes("");
+      else await dt.setWatchKcal(today, cardioEquivalent(profile, s.key || "cardio", min, sessionCardio())).catch(() => {});
+      setCardioKcal(""); setCardioMinutes(""); setCardioSpeed(""); setCardioIncline(""); setPicked(null);
       await dt.setType(today, s.key || "cardio", s.muscles || []).catch(() => {});
       setSaved(true); setTimeout(() => setSaved(false), 4000);
     } catch (e) { setError(e.message); }
@@ -195,6 +204,18 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan, seen = () =
               {estOf(plannedToday) > 0 && (
                 <p className="caption">Tu meta ya incluye unas <b className="num">{estOf(plannedToday).toLocaleString("es-CO")} kcal</b> de este cardio. Los minutos o las calorías que anotes reemplazan esa estimación: solo se suma la diferencia.</p>
               )}
+              {profile.cardio && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--sp-2)" }}>
+                  <div className="field">
+                    <label htmlFor="cardio-speed">Velocidad (km/h)</label>
+                    <input id="cardio-speed" type="number" inputMode="decimal" step="0.5" min="3" max="22" placeholder={String(profile.cardio.speed)} value={cardioSpeed} onChange={(e) => setCardioSpeed(e.target.value)} />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="cardio-incline">Inclinación (%)</label>
+                    <input id="cardio-incline" type="number" inputMode="decimal" step="0.5" min="0" max="15" placeholder={String(profile.cardio.incline)} value={cardioIncline} onChange={(e) => setCardioIncline(e.target.value)} />
+                  </div>
+                </div>
+              )}
               <div className="field">
                 <label htmlFor="cardio-min">¿Cuántos minutos hiciste?</label>
                 <input id="cardio-min" type="number" inputMode="numeric" min="1" max="600" placeholder={String(profile.session_min || 45)} value={cardioMinutes} onChange={(e) => setCardioMinutes(e.target.value)} />
@@ -266,7 +287,7 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan, seen = () =
           <Sheet open={picking} onClose={() => setPicking(false)} title="¿Qué entrenaste?">
             <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-2)", paddingBottom: "var(--sp-3)" }}>
               {Object.values(routine.days).filter((d, i, a) => a.findIndex((x) => x.name === d.name) === i).map((d) => (
-                <button key={d.name} className="glass" style={{ ...styles.pick }} onClick={() => { setPicking(false); estOf(d) > 0 && !seen("startcalc") && d.exercises?.length ? setIntro(d) : start(d); }}>
+                <button key={d.name} className="glass" style={{ ...styles.pick }} onClick={() => { setPicking(false); if (!d.exercises?.length) setPicked(d); else if (estOf(d) > 0 && !seen("startcalc")) setIntro(d); else start(d); }}>
                   <span style={{ fontWeight: 700 }}>{d.name}</span>
                   <span className="caption">{d.exercises.length} ejercicios</span>
                 </button>

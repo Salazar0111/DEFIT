@@ -7,7 +7,7 @@ import PhotoTile from "../components/PhotoTile";
 import { PALETTES, applyPalette } from "../lib/palettes";
 import {
   DAY_KEY_LABELS, DEFICITS, FRAMES, GOALS, LIFESTYLES, MUSCLE_LABELS, MUSCLE_ORDER, SESSION_MINUTES, TRAIN_TYPES, WEEKDAYS,
-  ageFrom, computePlanV2, dayKeyOf, fmt, normalizeDayPlan,
+  ageFrom, burnKcal, CARDIO_DEFAULT, computePlanV2, dayKeyOf, fmt, normalizeDayPlan,
 } from "../lib/plan";
 
 const ease = [0.16, 1, 0.3, 1];
@@ -32,6 +32,7 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
     trains: v2 ? profile.trains : null,
     // Plan por día: { dow: { kind: "weights"|"cardio"|"both", muscles: [...] } }
     day_plan: v2 && profile.trains ? normalizeDayPlan(profile) : {},
+    cardio: profile.cardio || CARDIO_DEFAULT,   // trotadora: { mode: "walk"|"run", speed, incline }
     session_min: profile.session_min || 60,
     intensity: profile.intensity || "moderate",
     target_mode: profile.target_mode || "by_day",
@@ -50,6 +51,7 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
   const plan = useMemo(() => computePlanV2({ ...d, deficit }), [d, deficit]);
   const trainDays = Object.keys(d.day_plan).map(Number).sort((a, b) => a - b);
   const weights = !!d.trains && trainDays.some((n) => d.day_plan[n].kind !== "cardio");
+  const hasCardio = !!d.trains && trainDays.some((n) => d.day_plan[n].kind !== "weights");
 
   const steps = [
     !edit && "welcome",
@@ -57,6 +59,7 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
     "sex", "birthdate", "body", "frame", "lifestyle", "trains",
     d.trains && "days",
     d.trains && trainDays.length > 0 && "dayplan",
+    hasCardio && "cardio",
     d.trains && "session",
     d.trains && "mode",
     "goal", "summary",
@@ -74,6 +77,7 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
     lifestyle: !!d.lifestyle,
     trains: d.trains !== null,
     days: trainDays.length > 0,
+    cardio: Number(d.cardio.speed) >= (d.cardio.mode === "walk" ? 3 : 6) && Number(d.cardio.speed) <= (d.cardio.mode === "walk" ? 7 : 22) && Number(d.cardio.incline) >= 0 && Number(d.cardio.incline) <= 15,
     dayplan: trainDays.every((n) => d.day_plan[n].kind === "cardio" || d.day_plan[n].muscles.length > 0),
     session: true,
     mode: true,
@@ -103,6 +107,7 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
       train_days: trains ? trainDays : [],
       leg_days: trains ? plan.legDays : [],
       day_plan: trains ? dayPlan : null,
+      cardio: trains && hasCardio ? { mode: d.cardio.mode, speed: Number(d.cardio.speed), incline: Number(d.cardio.incline) } : null,
       // La rutina se regenera desde el plan solo si cambiaron los días o los músculos.
       ...(profile.routine && sig(profile.trains ? normalizeDayPlan(profile) : {}) !== sig(trains ? dayPlan : {}) ? { routine: null } : {}),
       session_min: trains ? d.session_min : null,
@@ -324,6 +329,34 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
               </>
             )}
 
+            {current === "cardio" && (
+              <>
+                <Head eyebrow="Tu entrenamiento" title="Tu cardio en la trotadora" text="La velocidad y la inclinación son lo que más cambia las calorías que gastas." />
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, padding: 4, borderRadius: "var(--r-pill)", background: "var(--field)", border: "1px solid var(--hairline)" }}>
+                  {[{ id: "walk", label: "Caminar" }, { id: "run", label: "Trotar o correr" }].map((m) => {
+                    const on = d.cardio.mode === m.id;
+                    return (
+                      <button key={m.id} aria-pressed={on}
+                        onClick={() => set((x) => ({ cardio: { ...x.cardio, mode: m.id, speed: m.id === "walk" ? Math.min(Math.max(x.cardio.speed, 3), 7) : Math.max(x.cardio.speed, 6) } }))}
+                        style={{ ...styles.kindBtn, ...(on && styles.kindOn) }}>{m.label}</button>
+                    );
+                  })}
+                </div>
+                <NumStepper label="Velocidad promedio" unit="km/h" value={d.cardio.speed} step={0.5}
+                  min={d.cardio.mode === "walk" ? 3 : 6} max={d.cardio.mode === "walk" ? 7 : 22}
+                  onChange={(v) => set((x) => ({ cardio: { ...x.cardio, speed: v } }))} />
+                <NumStepper label="Inclinación" unit="%" value={d.cardio.incline} step={0.5} min={0} max={15}
+                  onChange={(v) => set((x) => ({ cardio: { ...x.cardio, incline: v } }))} />
+                <div style={styles.note}>
+                  <Info size={18} strokeWidth={2} style={{ color: "var(--accent)", flexShrink: 0, marginTop: 2 }} />
+                  <p style={{ fontSize: "var(--t-small)", lineHeight: 1.5 }}>
+                    Para tu peso, una hora así gasta unas <b className="num">{fmt(burnKcal("cardio", "moderate", 60, Number(d.weight_kg) || 70, d.cardio))} kcal</b>.
+                    Es una estimación basada en las ecuaciones de la trotadora del Colegio Americano de Medicina del Deporte. Si tu reloj marca otra cifra, podrás anotarla.
+                  </p>
+                </div>
+              </>
+            )}
+
             {current === "session" && (
               <>
                 <Head eyebrow="Tu entrenamiento" title="¿Cuánto dura y qué tan duro?" />
@@ -491,6 +524,26 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
         ) : (
           <button className="btn btn-primary btn-block" disabled={!valid} onClick={() => go(1)}>Continuar</button>
         )}
+      </div>
+    </div>
+  );
+}
+
+// Número con − y + (velocidad, inclinación).
+function NumStepper({ label, unit, value, onChange, step, min, max }) {
+  const set = (v) => onChange(Math.min(max, Math.max(min, Math.round(v * 10) / 10)));
+  return (
+    <div className="glass" style={{ padding: "var(--sp-3) var(--sp-4)", borderRadius: "var(--r-md)", display: "flex", flexDirection: "column", gap: "var(--sp-2)" }}>
+      <p className="eyebrow">{label}</p>
+      <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-3)" }}>
+        <button style={{ width: 52, height: 52, borderRadius: "50%", display: "grid", placeItems: "center", background: "var(--field)", border: "1px solid var(--hairline)", color: "var(--text)", fontSize: 24, fontWeight: 700 }}
+          onClick={() => set(value - step)} aria-label={`Menos ${label.toLowerCase()}`}>−</button>
+        <span style={{ flex: 1, textAlign: "center" }}>
+          <span className="num" style={{ fontSize: 34, fontWeight: 700, letterSpacing: "-0.03em" }}>{Number(value).toLocaleString("es-CO", { maximumFractionDigits: 1 })}</span>
+          <span className="muted" style={{ fontWeight: 700 }}> {unit}</span>
+        </span>
+        <button style={{ width: 52, height: 52, borderRadius: "50%", display: "grid", placeItems: "center", background: "var(--field)", border: "1px solid var(--hairline)", color: "var(--text)", fontSize: 24, fontWeight: 700 }}
+          onClick={() => set(value + step)} aria-label={`Más ${label.toLowerCase()}`}>+</button>
       </div>
     </div>
   );

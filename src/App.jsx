@@ -44,8 +44,9 @@ const DEMO_PROFILE = params.get("demo") === "nuevo"
         5: { kind: "both", muscles: ["legs"], key: "cwl" },
         6: { kind: "cardio", muscles: [], key: "cardio" },
       },
-      targets: { rest: 1660, train: 1890, leg: 2028, cardio: 2074, cw: 1982, cwl: 2051 },
-      burns: { rest: 0, train: 230, leg: 368, cardio: 414, cw: 322, cwl: 391 },
+      targets: { rest: 1660, train: 1890, leg: 2028, cardio: 2392, cw: 2141, cwl: 2210 },
+      burns: { rest: 0, train: 230, leg: 368, cardio: 732, cw: 481, cwl: 550 },
+      cardio: { mode: "run", speed: 8, incline: 1 },
       // ?demo&tour muestra el tutorial; ?demo&tips, las burbujas por pestaña.
       tips_seen: params.has("tour") ? [] : params.has("tips") ? ["tour"] : ["tour", "home", "food", "workout", "challenges", "profile"],
     };

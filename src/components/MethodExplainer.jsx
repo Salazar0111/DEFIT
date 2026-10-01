@@ -24,8 +24,8 @@ export default function MethodExplainer() {
           source="Fórmula Mifflin-St Jeor (1990), la más validada en adultos. Con % de grasa, Katch-McArdle. La contextura ajusta ±4% (criterio de DEFIT, no de la fórmula)." />
         <Row title="Tu día fuera del gym" uses="el tipo de trabajo que elegiste."
           source="Multiplicadores convencionales de actividad (1,2 · 1,35 · 1,5). Son aproximados." />
-        <Row title="Calorías del entrenamiento" uses="tu peso, la duración, el tipo de entreno y la intensidad. No usa tu sexo ni tu edad."
-          source="Fórmula (MET − 1) × peso × horas, con los valores del Compendio de Actividad Física 2024. En cardio usamos un valor promedio, así que es la parte menos precisa." />
+        <Row title="Calorías del entrenamiento" uses="tu peso, la duración, el tipo de entreno y la intensidad; en cardio, tu velocidad e inclinación. No usa tu sexo ni tu edad."
+          source="Fórmula (MET − 1) × peso × horas, con los valores del Compendio de Actividad Física 2024. Para el cardio en trotadora usamos las ecuaciones metabólicas del Colegio Americano de Medicina del Deporte (ACSM), según tu velocidad e inclinación. Si no indicaste tu cardio, usamos un valor promedio." />
         <Row title="Ritmo de cambio de peso" uses="tu déficit o superávit semanal."
           source="Regla de 7.700 kcal por kilo. Es una aproximación: el cuerpo se adapta con el tiempo." />
         <Row title="Proteína diaria" uses="tu peso, tu objetivo y si entrenas con pesas."
