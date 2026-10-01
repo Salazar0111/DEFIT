@@ -268,11 +268,11 @@ export function scheduledType(profile, dateStr) {
   return "rest";
 }
 
-// Calorías del reloj (ingresadas a mano): reemplazan la estimación de ese tipo de día, con tope.
-// Sube la meta como máximo 50% de lo estimado y puede bajarla hasta anular el entreno.
+// Lo que registras (reloj o minutos de cardio) reemplaza la estimación de ese tipo de día, sin topes.
+// Solo hay un piso: la meta no baja de la de un día sin entreno.
 export function watchAdjust(est, watch) {
   if (!watch || !est || est <= 0) return 0;
-  return Math.max(-est, Math.min(watch - est, Math.floor(est * 0.5)));
+  return Math.max(-est, watch - est);
 }
 
 // Cardio real del día: kcal equivalentes del día completo según los minutos que hiciste.
