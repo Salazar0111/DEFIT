@@ -5,7 +5,7 @@ import { challengeTitle } from "./ChallengesScreen";
 import CalcExplainer, { Equation, dayMath } from "../components/CalcExplainer";
 import MethodExplainer from "../components/MethodExplainer";
 import { Info } from "lucide-react";
-import { DAY_KEY_LABELS, MUSCLE_LABELS, MUSCLE_ORDER, cardioEquivalent, dayKeyOf, fmt, kindOfKey } from "../lib/plan";
+import { EXTRAS, MUSCLE_LABELS, MUSCLE_ORDER, cardioEquivalent, dayKeyOf, extraBurn, extrasLog, fmt, keyLabel, kindOfKey, makeKey, splitKey } from "../lib/plan";
 import { useFood } from "../lib/useFood";
 import { createPortal } from "react-dom";
 import Sheet from "../components/Sheet";
@@ -160,26 +160,39 @@ function DayTypePicker({ profile, dt, today, seen, markSeen }) {
   const kind = kindOfKey(type);
   const [kcal, setKcal] = useState("");
   const [mins, setMins] = useState("");
-  const hasCardio = ["cardio", "cw", "cwl"].includes(type);
+  const { base: baseKey, extras: dayExtras } = splitKey(type);
+  const hasCardio = ["cardio", "cw", "cwl"].includes(baseKey);
+  const [xmins, setXmins] = useState({});     // minutos por actividad extra
+  const [xkcal, setXkcal] = useState({});     // calorías del reloj por actividad extra
   // Con reloj manda el reloj; sin reloj, los minutos de cardio que hiciste ajustan el día.
   const saveWatch = async (e) => {
     e.preventDefault();
     setError("");
     try {
-      if (Number(kcal) > 0) await dt.setWatchKcal(today, kcal);
-      else if (Number(mins) > 0) await dt.setWatchKcal(today, cardioEquivalent(profile, type, mins));
-      setKcal(""); setMins(""); setNote(false); fx("success");
+      let w = watch || 0;
+      if (Number(kcal) > 0) { await dt.setWatchKcal(today, kcal); w = Number(kcal); }
+      else if (Number(mins) > 0) { w = cardioEquivalent(profile, baseKey, mins); await dt.setWatchKcal(today, w); }
+      // Pilates y ciclismo: el día pasa a incluirlos y se suma lo que hiciste (minutos o calorías del reloj).
+      const logged = Object.fromEntries(EXTRAS.map((x) => [x.id, { minutes: xmins[x.id], kcal: xkcal[x.id] }]));
+      const res = extrasLog(profile, Number(kcal) > 0 || Number(mins) > 0 ? makeKey(baseKey, dayExtras) : type, w, logged);
+      if (EXTRAS.some((x) => Number(xmins[x.id]) > 0 || Number(xkcal[x.id]) > 0)) {
+        if (res.key !== type) await dt.setType(today, res.key, muscles);
+        await dt.setWatchKcal(today, res.kcal);
+      }
+      setKcal(""); setMins(""); setXmins({}); setXkcal({}); setNote(false); fx("success");
     } catch (err) { setError(err.message); }
   };
+  const noteReady = !!kcal || !!mins || EXTRAS.some((x) => Number(xmins[x.id]) > 0 || Number(xkcal[x.id]) > 0);
   const KINDS = [{ id: "rest", label: "Descanso" }, { id: "weights", label: "Pesas" }, { id: "cardio", label: "Cardio" }, { id: "both", label: "Cardio y pesas" }];
-  const apply = async (k, m) => {
+  const apply = async (k, m, ex = dayExtras) => {
     setError("");
     fx("tick");
-    try { await dt.setType(today, k === "rest" ? "rest" : dayKeyOf(k, m), k === "rest" || k === "cardio" ? [] : m); } catch (e) { setError(e.message); }
+    try { await dt.setType(today, dayKeyOf(k === "rest" ? null : k, m, ex), k === "rest" || k === "cardio" ? [] : m); } catch (e) { setError(e.message); }
   };
-  const pickKind = (k) => apply(k, k === "rest" || k === "cardio" ? [] : muscles);
-  const toggleMuscle = (m) => apply(kind, muscles.includes(m) ? muscles.filter((x) => x !== m) : [...muscles, m]);
-  const label = DAY_KEY_LABELS[type] || "Descanso";
+  const pickKind = (k) => apply(k, k === "rest" || k === "cardio" ? [] : muscles, dayExtras);
+  const toggleMuscle = (m) => apply(kind, muscles.includes(m) ? muscles.filter((x) => x !== m) : [...muscles, m], dayExtras);
+  const toggleExtra = (id) => apply(kind, kind === "rest" || kind === "cardio" ? [] : muscles, dayExtras.includes(id) ? dayExtras.filter((x) => x !== id) : [...dayExtras, id]);
+  const label = keyLabel(type);
   const detail = muscles.length && kind !== "rest" && kind !== "cardio" ? muscles.map((m) => MUSCLE_LABELS[m]).join(", ") : "";
 
   return (
@@ -225,6 +238,22 @@ function DayTypePicker({ profile, dt, today, seen, markSeen }) {
                 );
               })}
             </div>
+            <div>
+              <p className="caption" style={{ fontWeight: 700, marginBottom: 8 }}>Además</p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {EXTRAS.map((x) => {
+                  const on = dayExtras.includes(x.id);
+                  return (
+                    <button key={x.id} onClick={() => toggleExtra(x.id)} aria-pressed={on}
+                      style={{ padding: "8px 14px", borderRadius: 99, fontWeight: 700, fontSize: "var(--t-small)", color: "var(--text)",
+                        background: on ? "color-mix(in srgb, #ffb02e 28%, transparent)" : "var(--field)",
+                        border: `1px solid ${on ? "color-mix(in srgb, #ffb02e 65%, transparent)" : "var(--hairline)"}` }}>
+                      + {x.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             {(kind === "weights" || kind === "both") && (
               <div>
                 <p className="caption" style={{ fontWeight: 700, marginBottom: 8 }}>Músculos de hoy</p>
@@ -248,16 +277,15 @@ function DayTypePicker({ profile, dt, today, seen, markSeen }) {
         )}
       </AnimatePresence>
 
-      {est > 0 && (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "var(--sp-2)", paddingTop: "var(--sp-2)", borderTop: "1px solid var(--hairline)" }}>
-          <p className="caption num" style={{ flex: 1, minWidth: 0 }}>
-            {watch > 0 ? `Registrado: ${fmt(watch)} kcal · ${adjust === 0 ? "sin ajuste" : `${adjust > 0 ? "+" : "−"}${fmt(Math.abs(adjust))} a tu meta`}` : "¿Cuánto marcó tu reloj?"}
-          </p>
-          <button className="btn btn-glass" style={{ minHeight: 38, padding: "0 14px", fontSize: "var(--t-caption)" }} onClick={() => setNote(true)}>
-            {watch > 0 ? "Cambiar" : "Anotar entreno"}
-          </button>
-        </div>
-      )}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "var(--sp-2)", paddingTop: "var(--sp-2)", borderTop: "1px solid var(--hairline)" }}>
+        <p className="caption num" style={{ flex: 1, minWidth: 0 }}>
+          {est <= 0 ? "¿Hiciste pilates, ciclismo u otro entreno?"
+            : watch > 0 ? `Registrado: ${fmt(watch)} kcal · ${adjust === 0 ? "sin ajuste" : `${adjust > 0 ? "+" : "−"}${fmt(Math.abs(adjust))} a tu meta`}` : "¿Cuánto marcó tu reloj?"}
+        </p>
+        <button className="btn btn-glass" style={{ minHeight: 38, padding: "0 14px", fontSize: "var(--t-caption)" }} onClick={() => setNote(true)}>
+          {watch > 0 ? "Cambiar" : "Anotar entreno"}
+        </button>
+      </div>
       {error && <p role="alert" style={{ color: "var(--danger)", fontWeight: 700, fontSize: "var(--t-small)" }}>{error}</p>}
 
       {kind !== "rest" && est > 0 && !seen("daycalc") && (
@@ -281,20 +309,42 @@ function DayTypePicker({ profile, dt, today, seen, markSeen }) {
           <Sheet open={note} onClose={() => setNote(false)} title="Anotar entreno">
             {note && (
               <form onSubmit={saveWatch} style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)", paddingBottom: "var(--sp-3)" }}>
-                <p className="muted" style={{ fontSize: "var(--t-small)", lineHeight: 1.5 }}>
-                  Tu meta ya incluye unas <b className="num" style={{ color: "var(--text)" }}>{fmt(est)} kcal</b> de este entreno. Lo que anotes reemplaza esa estimación: solo se suma la diferencia.
-                </p>
+                {est > 0 ? (
+                  <p className="muted" style={{ fontSize: "var(--t-small)", lineHeight: 1.5 }}>
+                    Tu meta ya incluye unas <b className="num" style={{ color: "var(--text)" }}>{fmt(est)} kcal</b> de este entreno. Lo que anotes reemplaza esa estimación: solo se suma la diferencia.
+                  </p>
+                ) : (
+                  <p className="muted" style={{ fontSize: "var(--t-small)", lineHeight: 1.5 }}>
+                    Hoy no tenías entreno. Si hiciste pilates o ciclismo, anótalo y tu meta de hoy sube con lo que gastaste.
+                  </p>
+                )}
                 {hasCardio && (
                   <div className="field">
                     <label htmlFor="cardio-mins">Minutos de cardio que hiciste</label>
                     <input id="cardio-mins" type="number" inputMode="numeric" min="0" max="600" placeholder={`Planeado: ${profile.session_min || 45}`} value={mins} onChange={(e) => setMins(e.target.value)} />
                   </div>
                 )}
+                {EXTRAS.map((x) => (
+                  <div key={x.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--sp-2)" }}>
+                    <div className="field">
+                      <label htmlFor={`x-${x.id}`}>{x.label} (min)</label>
+                      <input id={`x-${x.id}`} type="number" inputMode="numeric" min="0" max="600"
+                        placeholder={dayExtras.includes(x.id) ? `Planeado: ${(profile.extras?.[x.id]?.minutes) || 45}` : "0"}
+                        value={xmins[x.id] || ""} onChange={(e) => setXmins((m) => ({ ...m, [x.id]: e.target.value }))} />
+                    </div>
+                    <div className="field">
+                      <label htmlFor={`xk-${x.id}`}>Reloj (kcal)</label>
+                      <input id={`xk-${x.id}`} type="number" inputMode="numeric" min="0" max="5000"
+                        placeholder={Number(xmins[x.id]) > 0 ? `Estimado: ${fmt(extraBurn(x.id, profile.extras, Number(profile.weight_kg) || 70, xmins[x.id]))}` : "Opcional"}
+                        value={xkcal[x.id] || ""} onChange={(e) => setXkcal((m) => ({ ...m, [x.id]: e.target.value }))} />
+                    </div>
+                  </div>
+                ))}
                 <div className="field">
                   <label htmlFor="watch-kcal">Calorías del entreno según tu reloj</label>
                   <input id="watch-kcal" type="number" inputMode="numeric" min="0" max="5000" placeholder={watch ? String(watch) : `Estimado: ${fmt(est)}`} value={kcal} onChange={(e) => setKcal(e.target.value)} />
                 </div>
-                <button className="btn btn-primary btn-block" disabled={!kcal && !mins}>Guardar</button>
+                <button className="btn btn-primary btn-block" disabled={!noteReady}>Guardar</button>
                 {watch > 0 && (
                   <button type="button" className="btn btn-text" onClick={async () => { await dt.setWatchKcal(today, 0).catch(() => {}); setNote(false); }}>Quitar lo anotado</button>
                 )}

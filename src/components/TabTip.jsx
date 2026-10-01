@@ -4,7 +4,7 @@ import { avatarSrc } from "../lib/avatars";
 export const TAB_TIPS = {
   home: "Este es tu día. El anillo muestra cuántas calorías te quedan y yo cambio de ánimo según cómo vas. Tócame y te cuento más.",
   food: "Toca «Agregar comida»: saca una foto o escribe lo que comiste y la IA calcula. Si es un producto empacado, fotografía su tabla nutricional y elige cuántas porciones comiste. Si algo no cuadra, usa «Ajustar ingredientes». Con las flechas ves días anteriores y con la caneca borras algo.",
-  workout: "Aquí ves tu semana y la sesión de hoy. Toca «Empezar» y registra cada serie. Si entrenaste otra cosa, usa «Hice otra cosa».",
+  workout: "Aquí ves tu semana y la sesión de hoy. Toca «Empezar» y registra cada serie. Si hiciste pilates, ciclismo u otra cosa, usa «Hice otra cosa».",
   challenges: "Crea un reto con «Nuevo reto». En Social envías solicitudes de amistad y ves a tus amigos. Solo ellos ven tu perfil y tus logros. En Medallas están tus premios.",
   profile: "Aquí ves tu plan y cómo te ven tus amigos. En «Ajustes» están colores, notificaciones, Face ID y el tutorial.",
 };

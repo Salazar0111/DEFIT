@@ -82,7 +82,11 @@ const BY_MUSCLE = { chest: ["bench", "incline-db", "chest-fly"], back: ["pulldow
 const MUSCLE_NAME = { chest: "Pecho", back: "Espalda", shoulders: "Hombros", arms: "Brazos", legs: "Pierna", core: "Core" };
 const PICKS = { legs: 4, core: 1 };
 
-export function sessionFromMuscles(kind, muscles, key) {
+const EXTRA_NAME = { pilates: "Pilates", cycling: "Ciclismo" };
+const extrasName = (extras) => extras.map((x) => EXTRA_NAME[x]).join(" y ");
+
+export function sessionFromMuscles(kind, muscles, key, extras = []) {
+  if (!kind) return { name: extrasName(extras), kind: null, key, muscles: [], leg: false, cardio: false, extras, exercises: [] };
   const cardio = kind !== "weights";
   const label = muscles.length === 0 ? "Cardio" : muscles.length === 1 ? MUSCLE_NAME[muscles[0]] : muscles.length === 2 ? `${MUSCLE_NAME[muscles[0]]} y ${MUSCLE_NAME[muscles[1]].toLowerCase()}` : `${MUSCLE_NAME[muscles[0]]}, ${MUSCLE_NAME[muscles[1]].toLowerCase()} y más`;
   const exercises = [];
@@ -90,13 +94,14 @@ export function sessionFromMuscles(kind, muscles, key) {
     const n = muscles.length >= 4 ? 1 : PICKS[m] || (muscles.length === 1 ? 4 : 2);
     BY_MUSCLE[m].slice(0, n).forEach((id) => exercises.push({ id, sets: id === "plank" ? 3 : m === "legs" ? 4 : 3, reps: id === "plank" ? 45 : m === "legs" ? 8 : 10 }));
   });
-  return { name: kind === "both" ? `${label} + cardio` : label, kind, key, muscles, leg: muscles.includes("legs"), cardio, exercises };
+  const base = kind === "both" ? `${label} + cardio` : label;
+  return { name: extras.length ? `${base} + ${extrasName(extras).toLowerCase()}` : base, kind, key, muscles, leg: muscles.includes("legs"), cardio, extras, exercises };
 }
 
 export function buildRoutineFromPlan(dayPlan) {
   const days = {};
   Object.entries(dayPlan).forEach(([dow, e]) => {
-    days[dow] = sessionFromMuscles(e.kind, e.muscles || [], e.key);
+    days[dow] = sessionFromMuscles(e.kind || null, e.muscles || [], e.key, e.extras || []);
   });
   return { template: "plan", name: "Según tu plan", days };
 }

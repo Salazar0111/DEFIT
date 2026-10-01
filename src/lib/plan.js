@@ -111,15 +111,63 @@ export const DAY_KEY_LABELS = { rest: "Descanso", train: "Pesas", leg: "Pierna",
 export const DAY_KEY_ORDER = ["rest", "train", "leg", "cardio", "cw", "cwl"];
 export const DAY_TYPES = DAY_KEY_ORDER.map((id) => ({ id, label: DAY_KEY_LABELS[id] }));
 
+// Actividades extra: se suman a un día de pesas o cardio, o son el entreno del día. Cada una guarda sus minutos y su nivel.
+// MET del Compendio de Actividad Física 2024: Pilates mat 1,8 (02103) y general 2,8 (02105);
+// bicicleta estacionaria 50 W 4,0 (01214), 101–125 W 6,8 (01224), 126–150 W 8,0 (01228) y clase de spinning 9,0 (01270).
+export const EXTRAS = [
+  { id: "pilates", code: "p", label: "Pilates", levels: [
+    { id: "mat", label: "Suelo (mat)", hint: "Ejercicios en colchoneta.", met: 1.8 },
+    { id: "general", label: "General", hint: "Colchoneta con ritmo medio o con máquinas.", met: 2.8 },
+  ], defaultLevel: "general" },
+  { id: "cycling", code: "b", label: "Ciclismo", levels: [
+    { id: "light", label: "Suave", hint: "Puedes conversar sin problema (~50 W).", met: 4.0 },
+    { id: "moderate", label: "Moderado", hint: "Ritmo constante (~100–125 W).", met: 6.8 },
+    { id: "hard", label: "Fuerte", hint: "Respiras con esfuerzo (~126–150 W).", met: 8.0 },
+    { id: "spin", label: "Clase de spinning", hint: "Con intervalos y cambios de ritmo.", met: 9.0 },
+  ], defaultLevel: "moderate" },
+];
+export const EXTRAS_DEFAULT = { pilates: { minutes: 45, level: "general" }, cycling: { minutes: 45, level: "moderate" } };
+const extraById = (id) => EXTRAS.find((e) => e.id === id);
+
+// Una clave de día es la base (rest, train, leg, cardio, cw, cwl) más las actividades extra: "train+p", "rest+pb".
+export const splitKey = (key = "rest") => {
+  const [base, codes = ""] = String(key).split("+");
+  return { base, extras: EXTRAS.filter((e) => codes.includes(e.code)).map((e) => e.id) };
+};
+export const makeKey = (base, extras = []) => {
+  const codes = EXTRAS.filter((e) => extras.includes(e.id)).map((e) => e.code).join("");
+  return codes ? `${base}+${codes}` : base;
+};
+export const ALL_KEYS = DAY_KEY_ORDER.flatMap((b) => ["", "p", "b", "pb"].map((c) => (c ? `${b}+${c}` : b)));
+
+// Nombre del día: "Pesas", "Pesas + pilates", "Pilates y ciclismo".
+export const keyLabel = (key) => {
+  const { base, extras } = splitKey(key);
+  const names = extras.map((id) => extraById(id).label);
+  if (!names.length) return DAY_KEY_LABELS[base] || "Descanso";
+  if (base === "rest") return names.join(" y ").replace(/ y ([A-Z])/, (_, c) => ` y ${c.toLowerCase()}`);
+  return `${DAY_KEY_LABELS[base]} + ${names.join(" y ").toLowerCase()}`;
+};
+
+// Calorías de una actividad extra: (MET − 1) × peso × horas. Con kcal conocidas se usan tal cual.
+export function extraBurn(id, cfg, weight, minutes) {
+  const e = extraById(id);
+  const c = (cfg || EXTRAS_DEFAULT)[id] || EXTRAS_DEFAULT[id];
+  const met = (e.levels.find((l) => l.id === c.level) || e.levels.find((l) => l.id === e.defaultLevel)).met;
+  const m = minutes == null ? c.minutes : Number(minutes) || 0;
+  return Math.max(0, Math.round((met - 1) * Number(weight) * (m / 60)));
+}
+
 export const MUSCLE_LABELS = { chest: "Pecho", back: "Espalda", shoulders: "Hombros", arms: "Brazos", legs: "Pierna", core: "Core" };
 export const MUSCLE_ORDER = ["chest", "back", "shoulders", "arms", "legs", "core"];
 
 // kind: "weights" | "cardio" | "both". Con pierna entre los músculos, el día gasta más.
-export const dayKeyOf = (kind, muscles = []) => {
+export const dayKeyOf = (kind, muscles = [], extras = []) => {
   const legs = muscles.includes("legs");
-  if (kind === "cardio") return "cardio";
-  if (kind === "both") return legs ? "cwl" : "cw";
-  return legs ? "leg" : "train";
+  if (!kind) return makeKey("rest", extras);     // solo actividades extra
+  if (kind === "cardio") return makeKey("cardio", extras);
+  if (kind === "both") return makeKey(legs ? "cwl" : "cw", extras);
+  return makeKey(legs ? "leg" : "train", extras);
 };
 
 // MET de referencia (Compendio de Actividad Física 2024). Se resta 1 para no contar dos veces el basal.
@@ -152,8 +200,10 @@ function keyMet(key, intensity, cardio) {
 }
 
 // Calorías de un entreno: (MET − 1) × peso × horas. key: train, leg, cardio, cw o cwl.
-export function burnKcal(key, intensity, minutes, weight, cardio) {
-  return Math.max(0, round((keyMet(key, intensity, cardio) - 1) * weight * (minutes / 60)));
+export function burnKcal(key, intensity, minutes, weight, cardio, extrasCfg) {
+  const { base, extras } = splitKey(key);
+  const main = Math.max(0, round((keyMet(base, intensity, cardio) - 1) * weight * (minutes / 60)));
+  return main + extras.reduce((t, id) => t + extraBurn(id, extrasCfg, weight), 0);
 }
 
 // Metabolismo basal: Katch-McArdle si se conoce la grasa corporal; si no, Mifflin-St Jeor (sin ajustes propios).
@@ -183,7 +233,7 @@ export function legacyDayPlan(d) {
 // Plan por día normalizado: { dow: { kind, muscles, key } }.
 export function normalizeDayPlan(d) {
   const raw = d.day_plan && Object.keys(d.day_plan).length ? d.day_plan : legacyDayPlan(d);
-  return Object.fromEntries(Object.entries(raw).map(([n, e]) => [n, { kind: e.kind, muscles: e.muscles || [], key: e.key || dayKeyOf(e.kind, e.muscles) }]));
+  return Object.fromEntries(Object.entries(raw).map(([n, e]) => [n, { kind: e.kind || null, muscles: e.muscles || [], extras: e.extras || [], key: e.key || dayKeyOf(e.kind, e.muscles, e.extras) }]));
 }
 
 // Devuelve el plan completo: metas por tipo de día, meta promedio, proteína, avisos y cambio estimado.
@@ -203,11 +253,11 @@ export function computePlanV2(d) {
   // Cuántos días hay de cada tipo y qué gasta cada uno.
   const count = { rest: 7 - trainDays.length };
   trainDays.forEach((n) => { count[dp[n].key] = (count[dp[n].key] || 0) + 1; });
-  const keys = DAY_KEY_ORDER.filter((k) => count[k] > 0);   // tipos que hay en tu semana
+  const keys = ALL_KEYS.filter((k) => count[k] > 0);   // tipos que hay en tu semana
   const burn = { rest: 0 };
   const exp = { rest: base };
-  DAY_KEY_ORDER.filter((k) => k !== "rest").forEach((k) => {   // pero cualquier tipo se puede elegir un día
-    burn[k] = burnKcal(k, intensity, minutes, w, d.cardio);
+  ALL_KEYS.filter((k) => k !== "rest").forEach((k) => {   // pero cualquier tipo se puede elegir un día
+    burn[k] = burnKcal(k, intensity, minutes, w, d.cardio, d.extras);
     exp[k] = base + burn[k];
   });
   const weeklyExp = keys.reduce((t, k) => t + exp[k] * count[k], 0);
@@ -219,9 +269,9 @@ export function computePlanV2(d) {
   const avgTarget = avgExp + adj;
 
   const targets = {};
-  const trainKeys = DAY_KEY_ORDER.filter((k) => k !== "rest");
+  const trainKeys = ALL_KEYS.filter((k) => k !== "rest");
   if (d.target_mode === "fixed" || !trains) {
-    DAY_KEY_ORDER.forEach((k) => { targets[k] = round(avgTarget); });
+    ALL_KEYS.forEach((k) => { targets[k] = round(avgTarget); });
   } else if (d.goal === "recomp" && count.rest > 0) {
     // Recomposición: los días de entreno quedan en mantenimiento y el déficit va en los descansos (con tope).
     const totalDeficit = -adj * 7;
@@ -233,14 +283,14 @@ export function computePlanV2(d) {
     trainKeys.forEach((k) => { targets[k] = round(exp[k] - perTrain); });
   } else {
     // Mismo ajuste total, repartido según lo que cada día gasta.
-    DAY_KEY_ORDER.forEach((k) => { targets[k] = round(exp[k] + adj); });
+    ALL_KEYS.forEach((k) => { targets[k] = round(exp[k] + adj); });
   }
   const weeklyTarget = keys.reduce((t, k) => t + targets[k] * count[k], 0);
   const target = round(weeklyTarget / 7);
 
   const floor = FLOOR[d.sex];
   const lowest = Math.min(...keys.map((k) => targets[k]));
-  const hasWeights = trains && trainDays.some((n) => dp[n].kind !== "cardio");
+  const hasWeights = trains && trainDays.some((n) => dp[n].kind === "weights" || dp[n].kind === "both");
   // warnings = riesgos de comer poco (piden confirmación). notes = avisos informativos, sin alarma.
   const warnings = [];
   const notes = [];
@@ -268,7 +318,7 @@ export function computePlanV2(d) {
   return {
     age, bmr, base, burn, exp, count, keys, targets, target, protein, floor, warnings, notes, trains, hasWeights,
     dayPlan: dp, trainDays,
-    legDays: trainDays.filter((n) => ["leg", "cwl"].includes(dp[n].key)),
+    legDays: trainDays.filter((n) => ["leg", "cwl"].includes(splitKey(dp[n].key).base)),
     avgExp: round(avgExp),
     adjustment: round(adj),
     weeklyKg: Math.round(((weeklyTarget - weeklyExp) / 7700) * 100) / 100,
@@ -313,7 +363,20 @@ export function scheduledMuscles(profile, dateStr) {
 }
 
 // Tipo de día a partir de lo elegido hoy: descanso, pesas, cardio o ambos, más los músculos.
-export const kindOfKey = (key) => ({ rest: "rest", train: "weights", leg: "weights", cardio: "cardio", cw: "both", cwl: "both" }[key] || "rest");
+export const kindOfKey = (key) => ({ rest: "rest", train: "weights", leg: "weights", cardio: "cardio", cw: "both", cwl: "both" }[splitKey(key).base] || "rest");
+
+// Registro de actividades extra del día. logged = { pilates: { minutes } | { kcal }, ... }.
+// Devuelve el tipo de día resultante y las kcal que se anotan (lo que ya había + lo registrado).
+export function extrasLog(profile, key, existingWatch, logged) {
+  const w = Number(profile.weight_kg) || 0;
+  const { base, extras } = splitKey(key);
+  const ids = Object.keys(logged).filter((id) => logged[id] && (Number(logged[id].minutes) > 0 || Number(logged[id].kcal) > 0));
+  const nextKey = makeKey(base, [...new Set([...extras, ...ids])]);
+  const actual = ids.reduce((t, id) => t + (Number(logged[id].kcal) > 0 ? Number(logged[id].kcal) : extraBurn(id, profile.extras, w, logged[id].minutes)), 0);
+  const before = makeKey(base, extras.filter((id) => !ids.includes(id)));
+  const baseline = existingWatch > 0 ? existingWatch : (profile.burns?.[before] || 0);
+  return { key: nextKey, kcal: Math.round(baseline + actual) };
+}
 
 // Meta de un día: cambio puntual (si hay) o calendario, más el ajuste por reloj; las cuentas con plan v1 tienen una sola meta.
 export function dayTarget(profile, dateStr, override, watch) {

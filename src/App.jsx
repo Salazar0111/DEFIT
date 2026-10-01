@@ -21,7 +21,7 @@ import Medal from "./components/Medal";
 import { useChallenges } from "./lib/useChallenges";
 import { useDayTypes } from "./lib/useDayTypes";
 import { useWorkouts } from "./lib/useWorkouts";
-import { computePlanV2 } from "./lib/plan";
+import { ALL_KEYS, computePlanV2 } from "./lib/plan";
 import { medalById } from "./lib/medals";
 import { fx } from "./lib/feedback";
 import { avatarSrc } from "./lib/avatars";
@@ -54,9 +54,22 @@ const DEMO_PROFILE0 = params.get("demo") === "nuevo"
       tips_seen: params.has("tour") ? [] : params.has("tips") ? ["tour"] : ["tour", "home", "food", "workout", "challenges", "profile"],
     };
 
+// Demo con pilates y ciclismo: las metas y calorías por tipo de día se calculan con el mismo motor del plan.
+function withExtras(p) {
+  if (!p.onboarded || !p.day_plan) return p;
+  const q = {
+    ...p,
+    extras: { pilates: { minutes: 45, level: "general" }, cycling: { minutes: 40, level: "moderate" } },
+    day_plan: { ...p.day_plan, 3: { kind: null, muscles: [], extras: ["pilates"], key: "rest+p" }, 5: { kind: "both", muscles: ["legs"], extras: ["cycling"], key: "cwl+b" } },
+    train_days: [1, 2, 3, 4, 5, 6],
+  };
+  const plan = computePlanV2({ ...q, deficit: q.deficit || 0 });
+  return plan ? { ...q, targets: plan.targets, burns: plan.burn, target_kcal: plan.target, tdee: plan.avgExp } : p;
+}
+
 const DEMO_PROFILE = V1
   ? { ...DEMO_PROFILE0, plan_version: 2, trains: true, train_days: [1], leg_days: [], day_plan: { 1: { key: "cw", kind: "both", muscles: ["chest", "arms"] } }, targets: { cardio: 1857, cw: 1757, cwl: 1832, leg: 1807, rest: 1407, train: 1657 }, burns: { cardio: 450, cw: 350, cwl: 425, leg: 400, rest: 0, train: 250 }, cardio: null, target_mode: "by_day", tdee: 2457, target_kcal: 1457, deficit: 1000, tips_seen: ["tour", "home", "food", "profile", "workout", "challenges"] }
-  : DEMO_PROFILE0;
+  : withExtras(DEMO_PROFILE0);
 
 export default function App() {
   const [session, setSession] = useState(undefined); // undefined = cargando
@@ -129,7 +142,7 @@ function Main({ profile, tab, setTab, patchProfile, onEditPlan }) {
   };
   // Cuentas con plan v2 anterior: se completan las kcal estimadas y las metas de todos los tipos de día
   // (las que ya tienen no cambian). Si el plan está bloqueado por un reto, se intenta de nuevo más tarde.
-  const KEYS = ["rest", "train", "leg", "cardio", "cw", "cwl"];
+  const KEYS = ALL_KEYS;
   const incomplete = (profile.plan_version || 1) >= 2 && (!profile.burns || KEYS.some((k) => profile.targets?.[k] == null));
   useEffect(() => {
     if (profile.id === "demo" || !incomplete) return;

@@ -9,7 +9,7 @@ import Sheet from "../components/Sheet";
 import WorkoutSession from "../components/WorkoutSession";
 import RoutineEditor from "../components/RoutineEditor";
 import CalcExplainer from "../components/CalcExplainer";
-import { WEEKDAYS, cardioEquivalent } from "../lib/plan";
+import { EXTRAS, WEEKDAYS, cardioEquivalent, extraBurn, fmt, splitKey } from "../lib/plan";
 import { buildRoutine, buildRoutineFromPlan, exerciseById, templatesFor } from "../lib/exercises";
 
 const ease = [0.16, 1, 0.3, 1];
@@ -32,6 +32,9 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan, seen = () =
     incline: cardioIncline === "" ? profile.cardio.incline : Number(cardioIncline),
   } : undefined);
   const [intro, setIntro] = useState(null); // explicación antes del primer entreno
+  const [extrasSheet, setExtrasSheet] = useState(null);   // { ids } pilates o ciclismo por registrar
+  const [xmins, setXmins] = useState({});
+  const [xkcal, setXkcal] = useState({});
   const [last, setLast] = useState({});
   const [best, setBest] = useState({});
   const [newRecords, setNewRecords] = useState(null);
@@ -132,6 +135,19 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan, seen = () =
     } catch (e) { setError(e.message); }
   };
 
+  const openExtras = (ids) => {
+    setXmins(Object.fromEntries(ids.map((id) => [id, profile.extras?.[id]?.minutes ? String(profile.extras[id].minutes) : ""])));
+    setXkcal({});
+    setExtrasSheet({ ids });
+  };
+  const saveExtras = async () => {
+    setError("");
+    try {
+      await dt.logExtras(today, Object.fromEntries(extrasSheet.ids.map((id) => [id, { minutes: xmins[id], kcal: xkcal[id] }])));
+      setExtrasSheet(null); setSaved(true); setTimeout(() => setSaved(false), 4000);
+    } catch (e) { setError(e.message); }
+  };
+
   const restToday = async () => {
     setError("");
     try { await dt.setType(today, "rest"); } catch (e) { setError(e.message); }
@@ -149,7 +165,7 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan, seen = () =
               <button key={w.n} disabled={!planned} onClick={() => setEditingDow(w.n)} aria-label={planned ? `Editar ${planned.name} del ${w.long}` : w.long}
                 style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, color: "var(--text)" }}>
                 <span className="caption" style={{ fontWeight: isToday ? 700 : 400, color: isToday ? "var(--text)" : undefined }}>{w.short}</span>
-                <span style={{ ...styles.dayDot, ...(planned && (["leg", "cwl"].includes(planned.key) || (!planned.key && planned.leg) ? styles.leg : planned.key === "cardio" ? styles.cardio : styles.train)), ...(isToday && styles.today) }}>
+                <span style={{ ...styles.dayDot, ...(planned && (["leg", "cwl"].includes(splitKey(planned.key).base) || (!planned.key && planned.leg) ? styles.leg : splitKey(planned.key).base === "cardio" ? styles.cardio : splitKey(planned.key).base === "rest" ? styles.extra : styles.train)), ...(isToday && styles.today) }}>
                   {done ? <Check size={16} strokeWidth={3} /> : null}
                 </span>
               </button>
@@ -200,8 +216,28 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan, seen = () =
                 onClick={() => (estOf(plannedToday) > 0 && !seen("startcalc") ? setIntro(plannedToday) : start(plannedToday))}>
                 <Play size={20} strokeWidth={2.2} /> {wk.trainedToday ? "Entrenar otra vez" : "Empezar"}
               </button>
+              {splitKey(plannedToday.key).extras.length > 0 && (
+                <button className="btn btn-glass" onClick={() => openExtras(splitKey(plannedToday.key).extras)}>
+                  <HeartPulse size={17} strokeWidth={1.9} /> Registrar {splitKey(plannedToday.key).extras.map((id) => EXTRAS.find((x) => x.id === id).label.toLowerCase()).join(" y ")}
+                </button>
+              )}
             </>
           ) : (
+            splitKey(plannedToday.key).base === "rest" ? (
+            <>
+              {splitKey(plannedToday.key).extras.map((id) => (
+                <p key={id} className="muted" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <HeartPulse size={18} strokeWidth={1.8} /> {EXTRAS.find((x) => x.id === id).label}: {profile.extras?.[id]?.minutes || 45} minutos planeados.
+                </p>
+              ))}
+              {estOf(plannedToday) > 0 && (
+                <p className="caption">Tu meta ya incluye unas <b className="num">{estOf(plannedToday).toLocaleString("es-CO")} kcal</b> de esta actividad. Los minutos o las calorías que anotes reemplazan esa estimación: solo se suma la diferencia.</p>
+              )}
+              <button className="btn btn-primary" style={{ minHeight: 60, fontSize: 18 }} onClick={() => openExtras(splitKey(plannedToday.key).extras)}>
+                <Check size={20} strokeWidth={2.4} /> {wk.trainedToday ? "Registrar otra vez" : "Registrar"}
+              </button>
+            </>
+            ) : (
             <>
               <p className="muted" style={{ display: "flex", alignItems: "center", gap: 8 }}><HeartPulse size={18} strokeWidth={1.8} /> Planeado: {profile.session_min || 45} minutos de cardio.</p>
               {estOf(plannedToday) > 0 && (
@@ -230,7 +266,13 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan, seen = () =
               <button className="btn btn-primary" style={{ minHeight: 60, fontSize: 18 }} onClick={() => finishCardio(plannedToday)}>
                 <Check size={20} strokeWidth={2.4} /> {wk.trainedToday ? "Registrar otra vez" : "Marcar cardio hecho"}
               </button>
+              {splitKey(plannedToday.key).extras.length > 0 && (
+                <button className="btn btn-glass" onClick={() => openExtras(splitKey(plannedToday.key).extras)}>
+                  <HeartPulse size={17} strokeWidth={1.9} /> Registrar {splitKey(plannedToday.key).extras.map((id) => EXTRAS.find((x) => x.id === id).label.toLowerCase()).join(" y ")}
+                </button>
+              )}
             </>
+            )
           )}
         </section>
       ) : (
@@ -287,12 +329,46 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan, seen = () =
               </>
             )}
           </Sheet>
+          <Sheet open={!!extrasSheet} onClose={() => setExtrasSheet(null)} title={extrasSheet ? extrasSheet.ids.map((id) => EXTRAS.find((x) => x.id === id).label).join(" y ") : ""}>
+            {extrasSheet && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)", paddingBottom: "var(--sp-3)" }}>
+                <p className="muted" style={{ fontSize: "var(--t-small)", lineHeight: 1.5 }}>
+                  Anota los minutos o las calorías de tu reloj. Tu meta de hoy sube con lo que gastaste.
+                </p>
+                {extrasSheet.ids.map((id) => {
+                  const x = EXTRAS.find((e) => e.id === id);
+                  return (
+                    <div key={id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--sp-2)" }}>
+                      <div className="field">
+                        <label htmlFor={`wx-${id}`}>{x.label} (min)</label>
+                        <input id={`wx-${id}`} type="number" inputMode="numeric" min="0" max="600" value={xmins[id] || ""} onChange={(e) => setXmins((m) => ({ ...m, [id]: e.target.value }))} />
+                      </div>
+                      <div className="field">
+                        <label htmlFor={`wk-${id}`}>Reloj (kcal)</label>
+                        <input id={`wk-${id}`} type="number" inputMode="numeric" min="0" max="5000"
+                          placeholder={Number(xmins[id]) > 0 ? `Estimado: ${fmt(extraBurn(id, profile.extras, Number(profile.weight_kg) || 70, xmins[id]))}` : "Opcional"}
+                          value={xkcal[id] || ""} onChange={(e) => setXkcal((m) => ({ ...m, [id]: e.target.value }))} />
+                      </div>
+                    </div>
+                  );
+                })}
+                {error && <p role="alert" style={{ color: "var(--danger)", fontWeight: 700, fontSize: "var(--t-small)" }}>{error}</p>}
+                <button className="btn btn-primary btn-block" disabled={!extrasSheet.ids.some((id) => Number(xmins[id]) > 0 || Number(xkcal[id]) > 0)} onClick={saveExtras}>Guardar</button>
+              </div>
+            )}
+          </Sheet>
           <Sheet open={picking} onClose={() => setPicking(false)} title="¿Qué entrenaste?">
             <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-2)", paddingBottom: "var(--sp-3)" }}>
               {Object.values(routine.days).filter((d, i, a) => a.findIndex((x) => x.name === d.name) === i).map((d) => (
                 <button key={d.name} className="glass" style={{ ...styles.pick }} onClick={() => { setPicking(false); if (!d.exercises?.length) setPicked(d); else if (estOf(d) > 0 && !seen("startcalc")) setIntro(d); else start(d); }}>
                   <span style={{ fontWeight: 700 }}>{d.name}</span>
                   <span className="caption">{d.exercises.length} ejercicios</span>
+                </button>
+              ))}
+              {EXTRAS.map((x) => (
+                <button key={x.id} className="glass" style={{ ...styles.pick }} onClick={() => { setPicking(false); openExtras([x.id]); }}>
+                  <span style={{ fontWeight: 700 }}>{x.label}</span>
+                  <span className="caption">Con minutos o las calorías de tu reloj</span>
                 </button>
               ))}
               <button className="btn btn-text" onClick={() => { setPicking(false); restToday(); }}>No entrené hoy</button>
@@ -395,6 +471,7 @@ const styles = {
   train: { background: "color-mix(in srgb, var(--accent) 70%, transparent)", borderColor: "transparent" },
   leg: { background: "color-mix(in srgb, #3ddc84 75%, transparent)", borderColor: "transparent" },
   cardio: { background: "color-mix(in srgb, #ffb02e 80%, transparent)", borderColor: "transparent" },
+  extra: { background: "color-mix(in srgb, #c77dff 75%, transparent)", borderColor: "transparent" },
   today: { boxShadow: "0 0 0 2px var(--bg), 0 0 0 4px var(--text)" },
   list: { listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column" },
   li: { display: "flex", gap: "var(--sp-3)", padding: "10px 0", borderTop: "1px solid var(--hairline)", fontSize: "var(--t-small)", fontWeight: 700 },

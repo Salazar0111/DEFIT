@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "./supabase";
 import { dayKey, shiftDay } from "./food";
-import { dayTarget, scheduledMuscles } from "./plan";
+import { dayTarget, extrasLog, scheduledMuscles } from "./plan";
 
 const demoOverrides = {};
 const demoWatch = {};
@@ -45,5 +45,13 @@ export function useDayTypes(profile) {
     if (error) { setWatch(prev); throw new Error(error.message.includes("DAY_LOCKED") ? "Solo puedes cambiar hoy, o ayer hasta el mediodía." : "No se pudo guardar. Intenta de nuevo."); }
   };
 
-  return { overrides, watch, info, setType, setWatchKcal, today };
+  // Anota pilates o ciclismo del día (minutos o kcal del reloj). El día pasa a incluirlos y su gasto se suma a la meta.
+  const logExtras = async (day, logged) => {
+    const i = info(day);
+    const res = extrasLog(profile, i.type || "rest", watch[day] || 0, logged);
+    if (res.key !== i.type) await setType(day, res.key, i.muscles);
+    await setWatchKcal(day, res.kcal);
+  };
+
+  return { overrides, watch, info, setType, setWatchKcal, logExtras, today };
 }

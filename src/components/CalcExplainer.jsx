@@ -1,5 +1,5 @@
 import { Plus, Equal } from "lucide-react";
-import { DAY_KEY_LABELS, fmt } from "../lib/plan";
+import { keyLabel, fmt } from "../lib/plan";
 
 // Números de la cuenta del día: base sin entreno + entreno (estimado o registrado) = meta.
 export function dayMath(profile, info) {
@@ -50,7 +50,7 @@ export default function CalcExplainer({ profile, info }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-5)", paddingBottom: "var(--sp-4)" }}>
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-2)" }}>
-        <p className="eyebrow">Hoy · {DAY_KEY_LABELS[m.type] || "Descanso"}</p>
+        <p className="eyebrow">Hoy · {keyLabel(m.type)}</p>
         <Equation math={m} />
       </div>
 

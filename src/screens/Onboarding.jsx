@@ -6,14 +6,14 @@ import { AVATARS, avatarSrc } from "../lib/avatars";
 import PhotoTile from "../components/PhotoTile";
 import { PALETTES, applyPalette } from "../lib/palettes";
 import {
-  DAY_KEY_LABELS, DEFICITS, FRAMES, GOALS, LIFESTYLES, MUSCLE_LABELS, MUSCLE_ORDER, SESSION_MINUTES, TRAIN_TYPES, WEEKDAYS,
+  EXTRAS, EXTRAS_DEFAULT, extraBurn, keyLabel, DEFICITS, FRAMES, GOALS, LIFESTYLES, MUSCLE_LABELS, MUSCLE_ORDER, SESSION_MINUTES, TRAIN_TYPES, WEEKDAYS,
   ageFrom, burnKcal, CARDIO_DEFAULT, computePlanV2, dayKeyOf, fmt, normalizeDayPlan,
 } from "../lib/plan";
 
 const ease = [0.16, 1, 0.3, 1];
 
 // Firma del plan por día (días, tipo y músculos) para saber si cambió.
-const sig = (dp) => Object.keys(dp).sort().map((n) => `${n}:${dp[n].kind}:${[...(dp[n].muscles || [])].sort().join(",")}`).join("|");
+const sig = (dp) => Object.keys(dp).sort().map((n) => `${n}:${dp[n].kind}:${[...(dp[n].muscles || [])].sort().join(",")}:${[...(dp[n].extras || [])].sort().join(",")}`).join("|");
 
 // focus = "days": solo los pasos para elegir días de entreno y qué se hace cada día.
 // edit = true: solo los pasos del plan (desde Perfil u Hoy), con opción de cancelar.
@@ -33,6 +33,7 @@ export default function Onboarding({ profile, edit = false, focus = null, onDone
     trains: focus === "days" ? true : v2 ? profile.trains : null,
     // Plan por día: { dow: { kind: "weights"|"cardio"|"both", muscles: [...] } }
     day_plan: (v2 || focus === "days") && profile.trains ? normalizeDayPlan(profile) : {},
+    extras: { ...EXTRAS_DEFAULT, ...(profile.extras || {}) },   // minutos y nivel de pilates y ciclismo
     cardio: profile.cardio || CARDIO_DEFAULT,   // trotadora: { mode: "walk"|"run", speed, incline }
     session_min: profile.session_min || 60,
     intensity: profile.intensity || "moderate",
@@ -51,8 +52,10 @@ export default function Onboarding({ profile, edit = false, focus = null, onDone
   const deficit = d.goal === "lose" ? d.deficit : 0;
   const plan = useMemo(() => computePlanV2({ ...d, deficit }), [d, deficit]);
   const trainDays = Object.keys(d.day_plan).map(Number).sort((a, b) => a - b);
-  const weights = !!d.trains && trainDays.some((n) => d.day_plan[n].kind !== "cardio");
-  const hasCardio = !!d.trains && trainDays.some((n) => d.day_plan[n].kind !== "weights");
+  const weights = !!d.trains && trainDays.some((n) => ["weights", "both"].includes(d.day_plan[n].kind));
+  const hasCardio = !!d.trains && trainDays.some((n) => ["cardio", "both"].includes(d.day_plan[n].kind));
+  const usedExtras = EXTRAS.filter((x) => trainDays.some((n) => (d.day_plan[n].extras || []).includes(x.id)));
+  const usesGym = weights || hasCardio;
 
   const steps = focus === "days" ? [
     "days",
@@ -78,7 +81,7 @@ export default function Onboarding({ profile, edit = false, focus = null, onDone
     trains: d.trains !== null,
     days: trainDays.length > 0,
     training: !hasCardio || (Number(d.cardio.speed) >= (d.cardio.mode === "walk" ? 3 : 6) && Number(d.cardio.speed) <= (d.cardio.mode === "walk" ? 7 : 22) && Number(d.cardio.incline) >= 0 && Number(d.cardio.incline) <= 15),
-    dayplan: trainDays.every((n) => d.day_plan[n].kind === "cardio" || d.day_plan[n].muscles.length > 0),
+    dayplan: trainDays.every((n) => { const e = d.day_plan[n]; return (!e.kind && (e.extras || []).length > 0) || e.kind === "cardio" || (e.kind && e.muscles.length > 0); }),
     goal: !!d.goal && (!plan?.warnings.length || ack),
     summary: !!plan,
   }[current];
@@ -89,8 +92,8 @@ export default function Onboarding({ profile, edit = false, focus = null, onDone
     setSaving(true);
     setError("");
     const trains = !!d.trains && trainDays.length > 0;
-    const kinds = new Set(trainDays.map((n) => d.day_plan[n].kind));
-    const dayPlan = Object.fromEntries(trainDays.map((n) => [n, { kind: d.day_plan[n].kind, muscles: d.day_plan[n].muscles, key: dayKeyOf(d.day_plan[n].kind, d.day_plan[n].muscles) }]));
+    const kinds = new Set(trainDays.map((n) => d.day_plan[n].kind).filter(Boolean));
+    const dayPlan = Object.fromEntries(trainDays.map((n) => { const e = d.day_plan[n]; return [n, { kind: e.kind || null, muscles: e.kind ? e.muscles : [], extras: e.extras || [], key: dayKeyOf(e.kind, e.muscles, e.extras) }]; }));
     const patch = {
       sex: d.sex,
       birthdate: d.birthdate,
@@ -101,7 +104,8 @@ export default function Onboarding({ profile, edit = false, focus = null, onDone
       activity: null,
       lifestyle: d.lifestyle,
       trains,
-      train_type: !trains ? null : kinds.size === 1 ? [...kinds][0] : "both",
+      train_type: !trains || kinds.size === 0 ? null : kinds.size === 1 ? [...kinds][0] : "both",
+      extras: trains && usedExtras.length ? Object.fromEntries(usedExtras.map((x) => [x.id, d.extras[x.id]])) : null,
       train_days: trains ? trainDays : [],
       leg_days: trains ? plan.legDays : [],
       day_plan: trains ? dayPlan : null,
@@ -270,7 +274,7 @@ export default function Onboarding({ profile, edit = false, focus = null, onDone
                       <motion.button key={w.n} whileTap={{ scale: 0.9 }} aria-pressed={on} aria-label={w.long}
                         onClick={() => set((x) => {
                           const dp = { ...x.day_plan };
-                          if (dp[w.n]) delete dp[w.n]; else dp[w.n] = { kind: "weights", muscles: [] };
+                          if (dp[w.n]) delete dp[w.n]; else dp[w.n] = { kind: "weights", muscles: [], extras: [] };
                           return { day_plan: dp };
                         })}
                         style={{ ...styles.dayBtn, ...(on && styles.dayOn) }}>
@@ -287,27 +291,47 @@ export default function Onboarding({ profile, edit = false, focus = null, onDone
 
             {current === "dayplan" && (
               <>
-                <Head eyebrow="Tu entrenamiento" title="¿Qué haces cada día?" text="Elige pesas, cardio o ambos, y los músculos que trabajas. La pierna es la que más gasta." />
+                <Head eyebrow="Tu entrenamiento" title="¿Qué haces cada día?" text="Elige pesas, cardio o ambos, y los músculos que trabajas. También puedes sumar pilates o ciclismo, o dejarlos como el entreno del día." />
                 {trainDays.map((n) => {
                   const e = d.day_plan[n];
                   const w = WEEKDAYS.find((x) => x.n === n);
-                  const key = dayKeyOf(e.kind, e.muscles);
+                  const key = dayKeyOf(e.kind, e.muscles, e.extras);
                   return (
                     <div key={n} className="glass" style={styles.dayCard}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                         <h2>{w.long}</h2>
-                        <span className="caption" style={{ fontWeight: 700 }}>{DAY_KEY_LABELS[key]}</span>
+                        <span className="caption" style={{ fontWeight: 700 }}>{keyLabel(key)}</span>
                       </div>
                       <div style={styles.kindRow}>
                         {TRAIN_TYPES.map((t) => {
                           const on = e.kind === t.id;
                           return (
-                            <button key={t.id} aria-pressed={on} onClick={() => set((x) => ({ day_plan: { ...x.day_plan, [n]: { ...x.day_plan[n], kind: t.id, muscles: t.id === "cardio" ? [] : x.day_plan[n].muscles } } }))}
+                            <button key={t.id} aria-pressed={on} onClick={() => set((x) => {
+                              const cur = x.day_plan[n];
+                              // Tocar de nuevo el tipo activo lo quita (el día queda solo con actividades extra).
+                              if (cur.kind === t.id && (cur.extras || []).length) return { day_plan: { ...x.day_plan, [n]: { ...cur, kind: null, muscles: [] } } };
+                              return { day_plan: { ...x.day_plan, [n]: { ...cur, kind: t.id, muscles: t.id === "cardio" ? [] : cur.muscles } } };
+                            })}
                               style={{ ...styles.kindBtn, ...(on && styles.kindOn) }}>{t.label}</button>
                           );
                         })}
                       </div>
-                      {e.kind !== "cardio" && (
+                      <div style={styles.muscles}>
+                        {EXTRAS.map((x) => {
+                          const on = (e.extras || []).includes(x.id);
+                          return (
+                            <button key={x.id} aria-pressed={on} onClick={() => set((s) => {
+                              const cur = s.day_plan[n];
+                              const extras = (cur.extras || []).includes(x.id) ? cur.extras.filter((y) => y !== x.id) : [...(cur.extras || []), x.id];
+                              // Un día sin nada elegido vuelve a pesas para no quedar vacío.
+                              return { day_plan: { ...s.day_plan, [n]: { ...cur, extras, kind: !cur.kind && !extras.length ? "weights" : cur.kind } } };
+                            })} style={{ ...styles.muscle, ...(on && styles.extraOn) }}>
+                              + {x.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {e.kind && e.kind !== "cardio" && (
                         <div style={styles.muscles}>
                           {MUSCLE_ORDER.map((m) => {
                             const on = e.muscles.includes(m);
@@ -322,7 +346,8 @@ export default function Onboarding({ profile, edit = false, focus = null, onDone
                           })}
                         </div>
                       )}
-                      {e.kind !== "cardio" && e.muscles.length === 0 && <p className="caption">Elige al menos un músculo.</p>}
+                      {e.kind && e.kind !== "cardio" && e.muscles.length === 0 && <p className="caption">Elige al menos un músculo.</p>}
+                      {!e.kind && !(e.extras || []).length && <p className="caption">Elige qué haces este día.</p>}
                     </div>
                   );
                 })}
@@ -332,6 +357,7 @@ export default function Onboarding({ profile, edit = false, focus = null, onDone
             {current === "training" && (
               <>
                 <Head eyebrow="Tu entrenamiento" title="Duración, intensidad y cardio" />
+                {usesGym && <>
                 <p className="eyebrow">Duración de cada sesión</p>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "var(--sp-2)" }}>
                   {SESSION_MINUTES.map((m) => (
@@ -345,6 +371,7 @@ export default function Onboarding({ profile, edit = false, focus = null, onDone
                 <p className="eyebrow" style={{ marginTop: "var(--sp-3)" }}>Intensidad</p>
                 <Option active={d.intensity === "moderate"} title="Moderada" text="Terminas cansado, pero con reserva." onClick={() => set({ intensity: "moderate" })} />
                 <Option active={d.intensity === "intense"} title="Intensa" text="Llegas cerca del límite en casi todas las series." onClick={() => set({ intensity: "intense" })} />
+                </>}
                 {hasCardio && (
                   <>
                 <p className="eyebrow" style={{ marginTop: "var(--sp-4)" }}>Cardio en la trotadora</p>
@@ -373,6 +400,23 @@ export default function Onboarding({ profile, edit = false, focus = null, onDone
                 </div>
                   </>
                 )}
+                {usedExtras.map((x) => {
+                  const cfg = d.extras[x.id];
+                  return (
+                    <div key={x.id} style={{ display: "flex", flexDirection: "column", gap: "var(--sp-2)" }}>
+                      <p className="eyebrow" style={{ marginTop: "var(--sp-4)" }}>{x.label}</p>
+                      <NumStepper label="Duración" unit="min" value={cfg.minutes} step={5} min={10} max={180}
+                        onChange={(v) => set((s) => ({ extras: { ...s.extras, [x.id]: { ...s.extras[x.id], minutes: v } } }))} />
+                      {x.levels.map((l) => (
+                        <Option key={l.id} active={cfg.level === l.id} title={l.label} text={l.hint}
+                          onClick={() => set((s) => ({ extras: { ...s.extras, [x.id]: { ...s.extras[x.id], level: l.id } } }))} />
+                      ))}
+                      <p className="caption">
+                        Para tu peso, esa sesión gasta unas <b className="num">{fmt(extraBurn(x.id, d.extras, Number(d.weight_kg) || 70))} kcal</b> (Compendio de Actividad Física 2024). Es una estimación: si tu reloj marca otra cifra, podrás anotarla.
+                      </p>
+                    </div>
+                  );
+                })}
                 <div style={styles.note}>
                   <Info size={18} strokeWidth={2} style={{ color: "var(--accent)", flexShrink: 0, marginTop: 2 }} />
                   <p style={{ fontSize: "var(--t-small)", lineHeight: 1.5 }}>
@@ -475,7 +519,7 @@ export default function Onboarding({ profile, edit = false, focus = null, onDone
                   {plan.trains && d.target_mode === "by_day" && (
                     <div className="glass" style={{ padding: "var(--sp-2) var(--sp-4)" }}>
                       {plan.keys.map((k, i) => (
-                        <Row key={k} label={`Día de ${DAY_KEY_LABELS[k].toLowerCase()}`} value={`${fmt(plan.targets[k])} kcal`} last={i === plan.keys.length - 1} />
+                        <Row key={k} label={`Día de ${keyLabel(k).toLowerCase()}`} value={`${fmt(plan.targets[k])} kcal`} last={i === plan.keys.length - 1} />
                       ))}
                     </div>
                   )}
@@ -638,6 +682,7 @@ const styles = {
   muscles: { display: "flex", flexWrap: "wrap", gap: 6 },
   muscle: { padding: "8px 14px", borderRadius: 99, fontWeight: 700, fontSize: "var(--t-small)", color: "var(--text)", background: "var(--field)", border: "1px solid var(--hairline)" },
   muscleOn: { background: "color-mix(in srgb, var(--accent) 22%, transparent)", borderColor: "color-mix(in srgb, var(--accent) 55%, transparent)" },
+  extraOn: { background: "color-mix(in srgb, #ffb02e 28%, transparent)", borderColor: "color-mix(in srgb, #ffb02e 65%, transparent)" },
   muscleLeg: { background: "color-mix(in srgb, #3ddc84 25%, transparent)", borderColor: "color-mix(in srgb, #3ddc84 60%, transparent)" },
   chip: {
     display: "flex", flexDirection: "column", alignItems: "center", padding: "12px 0", borderRadius: "var(--r-md)",
