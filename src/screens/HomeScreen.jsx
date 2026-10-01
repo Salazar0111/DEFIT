@@ -2,7 +2,7 @@ import { motion } from "motion/react";
 import { ChevronRight, Lock, SlidersHorizontal, Swords } from "lucide-react";
 import { avatarSrc } from "../lib/avatars";
 import { challengeTitle } from "./ChallengesScreen";
-import { DAY_KEY_LABELS, DAY_KEY_ORDER, cardioEquivalent, fmt } from "../lib/plan";
+import { MUSCLE_LABELS, MUSCLE_ORDER, cardioEquivalent, dayKeyOf, fmt, kindOfKey } from "../lib/plan";
 import { useFood } from "../lib/useFood";
 import { createPortal } from "react-dom";
 import Sheet from "../components/Sheet";
@@ -158,10 +158,11 @@ function WeightCard({ profile, onEditPlan }) {
   );
 }
 
-// Tipo de día de hoy: descanso, entreno o pierna. Cambia la meta del día al instante.
+// Qué haces hoy: descanso, pesas, cardio o ambos, más los músculos que trabajas. Cambia la meta al instante.
 function DayTypePicker({ profile, dt, today }) {
   const [error, setError] = useState("");
-  const { type, target, adjust, est, watch } = dt.info(today);
+  const { type, target, adjust, est, watch, muscles } = dt.info(today);
+  const kind = kindOfKey(type);
   const [kcal, setKcal] = useState("");
   const [mins, setMins] = useState("");
   const hasCardio = ["cardio", "cw", "cwl"].includes(type);
@@ -175,12 +176,14 @@ function DayTypePicker({ profile, dt, today }) {
       setKcal(""); setMins(""); fx("success");
     } catch (err) { setError(err.message); }
   };
-  const options = DAY_KEY_ORDER.filter((k) => k === "rest" || profile.targets?.[k] != null).map((id) => ({ id, label: DAY_KEY_LABELS[id] }));
-  const pick = async (id) => {
+  const KINDS = [{ id: "rest", label: "Descanso" }, { id: "weights", label: "Pesas" }, { id: "cardio", label: "Cardio" }, { id: "both", label: "Cardio y pesas" }];
+  const apply = async (k, m) => {
     setError("");
     fx("tick");
-    try { await dt.setType(today, id); } catch (e) { setError(e.message); }
+    try { await dt.setType(today, k === "rest" ? "rest" : dayKeyOf(k, m), k === "rest" || k === "cardio" ? [] : m); } catch (e) { setError(e.message); }
   };
+  const pickKind = (k) => apply(k, k === "rest" || k === "cardio" ? [] : muscles);
+  const toggleMuscle = (m) => apply(kind, muscles.includes(m) ? muscles.filter((x) => x !== m) : [...muscles, m]);
   return (
     <section className="glass" style={{ padding: "var(--sp-4) var(--sp-5)", display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
@@ -189,23 +192,44 @@ function DayTypePicker({ profile, dt, today }) {
           Meta {fmt(target)} kcal
         </motion.span>
       </div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, padding: 4, borderRadius: options.length > 3 ? "var(--r-md)" : "var(--r-pill)", background: "var(--field)", border: "1px solid var(--hairline)" }}>
-        {options.map((o) => {
-          const active = o.id === type;
-          const green = o.id === "leg" || o.id === "cwl";
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 4, padding: 4, borderRadius: "var(--r-pill)", background: "var(--field)", border: "1px solid var(--hairline)" }}>
+        {KINDS.map((o) => {
+          const active = o.id === kind;
           return (
-            <button key={o.id} onClick={() => pick(o.id)} aria-pressed={active}
-              style={{ position: "relative", flex: "1 1 auto", minWidth: 84, minHeight: 42, padding: "0 12px", borderRadius: "var(--r-pill)", fontWeight: 700, fontSize: "var(--t-small)", whiteSpace: "nowrap" }}>
+            <button key={o.id} onClick={() => pickKind(o.id)} aria-pressed={active}
+              style={{ position: "relative", minHeight: 42, padding: "0 4px", borderRadius: "var(--r-pill)", fontWeight: 700, fontSize: 13 }}>
               {active && (
                 <motion.span layoutId="daytype-pill" transition={{ type: "spring", stiffness: 420, damping: 34 }}
-                  style={{ position: "absolute", inset: 0, borderRadius: "var(--r-pill)",
-                    background: green ? "linear-gradient(180deg, #3ddc84, #1b8a4c)" : "linear-gradient(180deg, var(--accent), var(--accent-strong))" }} />
+                  style={{ position: "absolute", inset: 0, borderRadius: "var(--r-pill)", background: "linear-gradient(180deg, var(--accent), var(--accent-strong))" }} />
               )}
-              <span style={{ position: "relative", color: active ? (green ? "#fff" : "var(--on-accent)") : "var(--text)" }}>{o.label}</span>
+              <span style={{ position: "relative", color: active ? "var(--on-accent)" : "var(--text)" }}>{o.label}</span>
             </button>
           );
         })}
       </div>
+
+      {(kind === "weights" || kind === "both") && (
+        <div>
+          <p className="caption" style={{ fontWeight: 700, marginBottom: 8 }}>Músculos de hoy</p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {MUSCLE_ORDER.map((m) => {
+              const on = muscles.includes(m);
+              return (
+                <button key={m} onClick={() => toggleMuscle(m)} aria-pressed={on}
+                  style={{ padding: "8px 14px", borderRadius: 99, fontWeight: 700, fontSize: "var(--t-small)", color: "var(--text)",
+                    background: on ? (m === "legs" ? "color-mix(in srgb, #3ddc84 25%, transparent)" : "color-mix(in srgb, var(--accent) 22%, transparent)") : "var(--field)",
+                    border: `1px solid ${on ? (m === "legs" ? "color-mix(in srgb, #3ddc84 60%, transparent)" : "color-mix(in srgb, var(--accent) 55%, transparent)") : "var(--hairline)"}` }}>
+                  {MUSCLE_LABELS[m]}
+                </button>
+              );
+            })}
+          </div>
+          <p className="caption" style={{ marginTop: 8 }}>
+            {muscles.length ? `${muscles.map((m) => MUSCLE_LABELS[m]).join(", ")}${muscles.includes("legs") ? " · día de pierna" : ""}` : "Elige los músculos que trabajaste."}
+          </p>
+        </div>
+      )}
+
       {est > 0 && (
         <form onSubmit={saveWatch} style={{ display: "flex", flexDirection: "column", gap: "var(--sp-2)", paddingTop: "var(--sp-2)", borderTop: "1px solid var(--hairline)" }}>
           {hasCardio && (

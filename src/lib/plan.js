@@ -187,10 +187,10 @@ export function computePlanV2(d) {
   // Cuántos días hay de cada tipo y qué gasta cada uno.
   const count = { rest: 7 - trainDays.length };
   trainDays.forEach((n) => { count[dp[n].key] = (count[dp[n].key] || 0) + 1; });
-  const keys = DAY_KEY_ORDER.filter((k) => count[k] > 0);
+  const keys = DAY_KEY_ORDER.filter((k) => count[k] > 0);   // tipos que hay en tu semana
   const burn = { rest: 0 };
   const exp = { rest: base };
-  keys.filter((k) => k !== "rest").forEach((k) => {
+  DAY_KEY_ORDER.filter((k) => k !== "rest").forEach((k) => {   // pero cualquier tipo se puede elegir un día
     burn[k] = trainKcal(KEY_MET[k], intensity, minutes, w);
     exp[k] = base + burn[k];
   });
@@ -203,21 +203,21 @@ export function computePlanV2(d) {
   const avgTarget = avgExp + adj;
 
   const targets = {};
-  const trainKeys = keys.filter((k) => k !== "rest");
+  const trainKeys = DAY_KEY_ORDER.filter((k) => k !== "rest");
   if (d.target_mode === "fixed" || !trains) {
-    keys.forEach((k) => { targets[k] = round(avgTarget); });
+    DAY_KEY_ORDER.forEach((k) => { targets[k] = round(avgTarget); });
   } else if (d.goal === "recomp" && count.rest > 0) {
     // Recomposición: los días de entreno quedan en mantenimiento y el déficit va en los descansos (con tope).
     const totalDeficit = -adj * 7;
     const perRest = Math.min(totalDeficit / count.rest, exp.rest * 0.25);
     const left = totalDeficit - perRest * count.rest;
-    const trainCount = trainKeys.reduce((t, k) => t + count[k], 0);
+    const trainCount = trainKeys.reduce((t, k) => t + (count[k] || 0), 0);
     const perTrain = trainCount ? left / trainCount : 0;
     targets.rest = round(exp.rest - perRest);
     trainKeys.forEach((k) => { targets[k] = round(exp[k] - perTrain); });
   } else {
     // Mismo ajuste total, repartido según lo que cada día gasta.
-    keys.forEach((k) => { targets[k] = round(exp[k] + adj); });
+    DAY_KEY_ORDER.forEach((k) => { targets[k] = round(exp[k] + adj); });
   }
   const weeklyTarget = keys.reduce((t, k) => t + targets[k] * count[k], 0);
   const target = round(weeklyTarget / 7);
@@ -288,6 +288,15 @@ export function cardioEquivalent(profile, key, minutes) {
   const planned = trainKcal("cardio", intensity, (profile.session_min || defaultMinutes) / 2, w);
   return Math.max(0, est - planned + actual);
 }
+
+// Músculos que tocan ese día según el plan (vacío si descansa o es cardio).
+export function scheduledMuscles(profile, dateStr) {
+  const dow = ((new Date(dateStr + "T12:00:00").getDay() + 6) % 7) + 1;
+  return profile.day_plan?.[dow]?.muscles || ((profile.leg_days || []).includes(dow) ? ["legs"] : []);
+}
+
+// Tipo de día a partir de lo elegido hoy: descanso, pesas, cardio o ambos, más los músculos.
+export const kindOfKey = (key) => ({ rest: "rest", train: "weights", leg: "weights", cardio: "cardio", cw: "both", cwl: "both" }[key] || "rest");
 
 // Meta de un día: cambio puntual (si hay) o calendario, más el ajuste por reloj; las cuentas con plan v1 tienen una sola meta.
 export function dayTarget(profile, dateStr, override, watch) {

@@ -118,14 +118,17 @@ function Main({ profile, tab, setTab, patchProfile, onEditPlan }) {
     patchProfile({ tips_seen });
     if (profile.id !== "demo") await supabase.from("profiles").update({ tips_seen }).eq("id", profile.id);
   };
-  // Cuentas con plan v2 anterior a las calorías del reloj: se calculan y guardan las kcal estimadas por tipo de día.
+  // Cuentas con plan v2 anterior: se completan las kcal estimadas y las metas de todos los tipos de día
+  // (las que ya tienen no cambian). Si el plan está bloqueado por un reto, se intenta de nuevo más tarde.
+  const KEYS = ["rest", "train", "leg", "cardio", "cw", "cwl"];
+  const incomplete = (profile.plan_version || 1) >= 2 && (!profile.burns || KEYS.some((k) => profile.targets?.[k] == null));
   useEffect(() => {
-    if (profile.id === "demo" || (profile.plan_version || 1) < 2 || profile.burns) return;
+    if (profile.id === "demo" || !incomplete) return;
     const p = computePlanV2({ ...profile, deficit: profile.deficit || 0 });
     if (!p) return;
-    patchProfile({ burns: p.burn });
-    supabase.from("profiles").update({ burns: p.burn }).eq("id", profile.id).then(() => {});
-  }, [profile.id, profile.plan_version, !!profile.burns]); // eslint-disable-line react-hooks/exhaustive-deps
+    const patch = { burns: p.burn, targets: { ...p.targets, ...(profile.targets || {}) } };
+    supabase.from("profiles").update(patch).eq("id", profile.id).then(({ error }) => { if (!error) patchProfile(patch); });
+  }, [profile.id, incomplete]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const showTour = !seen("tour");
   const replayTour = () => patchProfile({ tips_seen: (profile.tips_seen || []).filter((k) => k !== "tour") });

@@ -93,7 +93,7 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan }) {
       if (k > 0) await dt.setWatchKcal(today, (dt.watch?.[today] || 0) + k).catch(() => {});
       else await dt.setWatchKcal(today, cardioEquivalent(profile, s.key || "cardio", min)).catch(() => {});
       setCardioKcal(""); setCardioMinutes("");
-      await dt.setType(today, s.key || "cardio").catch(() => {});
+      await dt.setType(today, s.key || "cardio", s.muscles || []).catch(() => {});
       setSaved(true); setTimeout(() => setSaved(false), 4000);
     } catch (e) { setError(e.message); }
   };
@@ -112,7 +112,7 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan }) {
       if (watchKcal > 0) await dt.setWatchKcal(today, (dt.watch?.[today] || 0) + watchKcal).catch(() => {});
       else if (cardioMin > 0) await dt.setWatchKcal(today, cardioEquivalent(profile, session.key, cardioMin)).catch(() => {});
       // El día queda como entreno o pierna, y su meta se ajusta sola.
-      await dt.setType(today, session.key || (session.leg ? "leg" : "train")).catch(() => {});
+      await dt.setType(today, session.key || (session.leg ? "leg" : "train"), session.muscles || (session.leg ? ["legs"] : [])).catch(() => {});
       setSession(null);
       if (records?.length) setNewRecords(records); else { setSaved(true); setTimeout(() => setSaved(false), 4000); }
     } catch (e) { setError(e.message); }

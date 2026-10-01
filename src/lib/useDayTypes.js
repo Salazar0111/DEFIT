@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "./supabase";
 import { dayKey, shiftDay } from "./food";
-import { dayTarget } from "./plan";
+import { dayTarget, scheduledMuscles } from "./plan";
 
 const demoOverrides = {};
 const demoWatch = {};
@@ -15,19 +15,23 @@ export function useDayTypes(profile) {
 
   useEffect(() => {
     if (demo || (profile.plan_version || 1) < 2) return;
-    supabase.from("day_types").select("day, type").gte("day", shiftDay(today, -30))
-      .then(({ data }) => setOverrides(Object.fromEntries((data || []).map((r) => [r.day, r.type]))));
+    supabase.from("day_types").select("day, type, muscles").gte("day", shiftDay(today, -30))
+      .then(({ data }) => setOverrides(Object.fromEntries((data || []).map((r) => [r.day, { type: r.type, muscles: r.muscles || [] }]))));
     supabase.from("day_burn").select("day, kcal").gte("day", shiftDay(today, -30))
       .then(({ data }) => setWatch(Object.fromEntries((data || []).map((r) => [r.day, r.kcal]))));
   }, [demo, profile.id, profile.plan_version, today]);
 
-  const info = useCallback((day) => dayTarget(profile, day, overrides[day], watch[day]), [profile, overrides, watch]);
+  const info = useCallback((day) => ({
+    ...dayTarget(profile, day, overrides[day]?.type, watch[day]),
+    muscles: overrides[day] ? overrides[day].muscles : scheduledMuscles(profile, day),
+  }), [profile, overrides, watch]);
 
-  const setType = async (day, type) => {
+  // type: rest | train | leg | cardio | cw | cwl; muscles: los que trabajas ese día.
+  const setType = async (day, type, muscles = []) => {
     const prev = overrides;
-    setOverrides((o) => ({ ...o, [day]: type }));
-    if (demo) { demoOverrides[day] = type; return; }
-    const { error } = await supabase.rpc("set_day_type", { d: day, t: type });
+    setOverrides((o) => ({ ...o, [day]: { type, muscles } }));
+    if (demo) { demoOverrides[day] = { type, muscles }; return; }
+    const { error } = await supabase.rpc("set_day_type", { d: day, t: type, m: muscles });
     if (error) { setOverrides(prev); throw new Error(error.message.includes("DAY_LOCKED") ? "Solo puedes cambiar hoy, o ayer hasta el mediodía." : "No se pudo cambiar. Intenta de nuevo."); }
   };
 
