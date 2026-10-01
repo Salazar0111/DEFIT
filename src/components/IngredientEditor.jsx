@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Minus, Plus, X, Sparkles, PenLine } from "lucide-react";
+import { Minus, Plus, X, Sparkles, PenLine, ScanLine } from "lucide-react";
+import LabelScanner from "./LabelScanner";
 import { makeIngredient, sumIngredients, valuesOf, withGrams, withKcal } from "../lib/ingredients";
 import { fmt } from "../lib/plan";
 
@@ -8,8 +9,9 @@ const ease = [0.16, 1, 0.3, 1];
 const STEP = 10;
 
 // Editor de una comida por ingredientes: nombre, gramos con − / + y kcal corregibles.
-export default function IngredientEditor({ name, onName, items, onItems, onEstimate }) {
+export default function IngredientEditor({ name, onName, items, onItems, onEstimate, onRequest }) {
   const [adding, setAdding] = useState(false);
+  const [scanning, setScanning] = useState(false);
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -97,6 +99,10 @@ export default function IngredientEditor({ name, onName, items, onItems, onEstim
         </AnimatePresence>
       </div>
 
+      {scanning ? (
+        <LabelScanner estimate={onRequest} onCancel={() => setScanning(false)}
+          onAdd={(ing) => { onItems([...items, ing]); setScanning(false); }} />
+      ) : (
       <AnimatePresence mode="wait" initial={false}>
         {adding ? (
           <motion.form key="add" onSubmit={addWithAI} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
@@ -112,7 +118,10 @@ export default function IngredientEditor({ name, onName, items, onItems, onEstim
             </div>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <button type="button" className="btn btn-text" style={{ fontSize: "var(--t-small)" }} onClick={addManual}>
-                <PenLine size={15} strokeWidth={2} /> Escribirlo a mano
+                <PenLine size={15} strokeWidth={2} /> A mano
+              </button>
+              <button type="button" className="btn btn-text" style={{ fontSize: "var(--t-small)" }} onClick={() => { setAdding(false); setScanning(true); }}>
+                <ScanLine size={15} strokeWidth={2} /> Tabla nutricional
               </button>
               <button type="button" className="btn btn-text" style={{ fontSize: "var(--t-small)" }} onClick={() => setAdding(false)}>Cancelar</button>
             </div>
@@ -125,6 +134,7 @@ export default function IngredientEditor({ name, onName, items, onItems, onEstim
           </motion.button>
         )}
       </AnimatePresence>
+      )}
     </div>
   );
 }

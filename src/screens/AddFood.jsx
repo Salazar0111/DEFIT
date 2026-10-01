@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Camera, PenLine, ArrowRight, RotateCcw, Images, SlidersHorizontal, ChevronDown, Mic, Square } from "lucide-react";
+import { Camera, PenLine, ArrowRight, RotateCcw, Images, SlidersHorizontal, ChevronDown, Mic, Square, ScanLine } from "lucide-react";
 import { estimateFood } from "../lib/supabase";
 import { MEALS, mealForNow, photoToBase64 } from "../lib/food";
 import IngredientEditor from "../components/IngredientEditor";
+import LabelScanner from "../components/LabelScanner";
 import { fromEntry, makeIngredient, serialize, sumIngredients } from "../lib/ingredients";
 
 const ease = [0.16, 1, 0.3, 1];
@@ -17,6 +18,11 @@ const DEMO_RESULT = {
     { name: "Huevo frito", grams: 50, kcal: 100, protein_g: 6, carbs_g: 0.5, fat_g: 8 },
     { name: "Plátano maduro", grams: 60, kcal: 120, protein_g: 1, carbs_g: 31, fat_g: 0.2 },
   ],
+};
+
+const DEMO_LABEL = {
+  label: true, name: "Galletas de avena", serving_g: 30, serving_text: "3 galletas (30 g)", servings_per_pack: 8,
+  per_serving: { kcal: 130, protein_g: 2, carbs_g: 21, fat_g: 4.5 }, per_100: null,
 };
 
 const SpeechRec = typeof window !== "undefined" ? window.SpeechRecognition || window.webkitSpeechRecognition : null;
@@ -34,6 +40,7 @@ export default function AddFood({ onSave, demo, initial }) {
   const [draft, setDraft] = useState(initial ? { name: initial.name, items: fromEntry(initial), source: initial.source, portion: initial.portion } : null);
   const [saving, setSaving] = useState(false);
   const [listening, setListening] = useState(false);
+  const [scanning, setScanning] = useState(false);
   const recRef = useRef(null);
   useEffect(() => () => recRef.current?.abort?.(), []);
   // Dictado: el texto aparece en el campo para revisarlo antes de calcular.
@@ -60,10 +67,10 @@ export default function AddFood({ onSave, demo, initial }) {
   const cameraRef = useRef(null);
   const galleryRef = useRef(null);
 
-  const reset = () => { setAdjust(false); setPickMeal(false); setDraft(null); setPreview(null); setError(""); setQuery(""); };
+  const reset = () => { setScanning(false); setAdjust(false); setPickMeal(false); setDraft(null); setPreview(null); setError(""); setQuery(""); };
 
   const estimate = (payload) =>
-    demo ? new Promise((ok) => setTimeout(() => ok(DEMO_RESULT), 800)) : estimateFood(payload);
+    demo ? new Promise((ok) => setTimeout(() => ok(payload.mode === "label" ? DEMO_LABEL : DEMO_RESULT), 800)) : estimateFood(payload);
 
   const run = async (payload) => {
     setBusy(true);
@@ -133,7 +140,7 @@ export default function AddFood({ onSave, demo, initial }) {
             {adjust ? (
               <IngredientEditor name={draft.name} onName={(name) => setDraft((x) => ({ ...x, name }))}
                 items={draft.items} onItems={(items) => setDraft((x) => ({ ...x, items }))}
-                onEstimate={(query) => estimate({ mode: "text", query })} />
+                onEstimate={(query) => estimate({ mode: "text", query })} onRequest={estimate} />
             ) : (
               <div className="glass" style={{ padding: "var(--sp-4)", display: "flex", flexDirection: "column", gap: "var(--sp-2)" }}>
                 <input aria-label="Nombre de la comida" value={draft.name} onChange={(e) => setDraft((x) => ({ ...x, name: e.target.value }))}
@@ -161,6 +168,10 @@ export default function AddFood({ onSave, demo, initial }) {
         ) : (
           <motion.div key="pick" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.3, ease }} style={{ display: "flex", flexDirection: "column", gap: "var(--sp-4)" }}>
+            {scanning ? (
+              <LabelScanner estimate={estimate} onCancel={() => setScanning(false)}
+                onAdd={(ing, name) => { setScanning(false); setDraft({ name, portion: null, items: [ing], source: "photo" }); }} />
+            ) : (<>
             {/* capture abre la cámara directo; sin capture, iOS ofrece la fototeca */}
             <input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden onChange={onPhoto} />
             <input ref={galleryRef} type="file" accept="image/*" hidden onChange={onPhoto} />
@@ -201,10 +212,15 @@ export default function AddFood({ onSave, demo, initial }) {
               </button>
             </form>
 
+            <button className="btn btn-glass" onClick={() => setScanning(true)}>
+              <ScanLine size={18} strokeWidth={1.9} /> Foto de tabla nutricional
+            </button>
+
             <button className="btn btn-text" style={{ alignSelf: "center", fontSize: "var(--t-small)" }}
               onClick={() => { setAdjust(true); setDraft({ name: "", portion: null, items: [makeIngredient({ name: "", grams: 100, kcal: 0 })], source: "manual" }); }}>
               <PenLine size={15} strokeWidth={2} /> Ingresar a mano
             </button>
+            </>)}
 
             {error && <p role="alert" style={styles.error}>{error}</p>}
           </motion.div>

@@ -27,7 +27,19 @@ async function supabaseFetch(path, token, init = {}) {
   });
 }
 
+const LABEL_INSTRUCTIONS = `Lee la tabla nutricional (etiqueta) de la foto de un producto empaquetado. Copia los números impresos; no inventes ni calcules.
+Responde SOLO con un objeto JSON, sin texto adicional ni markdown, con esta forma exacta:
+{"label":true,"name":"nombre del producto si se ve, si no \"Producto\"","serving_g":número o null,"serving_text":"porción tal como está impresa, ej: 1 galleta (20 g)","servings_per_pack":número o null,"per_serving":{"kcal":n,"protein_g":n,"carbs_g":n,"fat_g":n} o null,"per_100":{"kcal":n,"protein_g":n,"carbs_g":n,"fat_g":n} o null}
+serving_g son los gramos (o ml) de una porción. per_serving es la columna "por porción" y per_100 la columna "por 100 g" (o 100 ml); pon null en la que no aparezca. Las calorías van en kcal; si solo están en kJ, divide entre 4,184. Carbohidratos totales y grasa total.
+Si no hay una tabla nutricional legible, responde {"label":false}.`;
+
 function buildMessage(body) {
+  if (body?.mode === "label" && typeof body.image === "string" && body.image.length <= MAX_IMAGE_CHARS) {
+    return [
+      { type: "image", source: { type: "base64", media_type: "image/jpeg", data: body.image } },
+      { type: "text", text: LABEL_INSTRUCTIONS },
+    ];
+  }
   if (body?.mode === "photo" && typeof body.image === "string" && body.image.length <= MAX_IMAGE_CHARS) {
     return [
       { type: "image", source: { type: "base64", media_type: "image/jpeg", data: body.image } },
@@ -108,6 +120,24 @@ export default async function handler(req, res) {
     if (r.error === "ai_status") return res.status(502).json({ error: "El servicio de IA no respondió bien. Intenta de nuevo." });
     const parsed = r.parsed;
     if (!parsed) return res.status(502).json({ error: "No se pudo analizar. Intenta de nuevo." });
+    if (req.body?.mode === "label") {
+      if (parsed.label === false) return res.status(422).json({ error: "No pude leer la tabla nutricional. Acércate más y que se vea completa." });
+      const macros = (m) => (m && Number(m.kcal) >= 0 && m.kcal != null
+        ? { kcal: Math.round(num(m.kcal, 5000)), protein_g: num(m.protein_g, 500), carbs_g: num(m.carbs_g, 1000), fat_g: num(m.fat_g, 500) } : null);
+      const serving_g = num(parsed.serving_g, 3000) || null;
+      const per_serving = macros(parsed.per_serving);
+      const per_100 = macros(parsed.per_100);
+      if (!per_100 && !(per_serving && serving_g)) {
+        return res.status(422).json({ error: "No pude leer la tabla nutricional. Acércate más y que se vea completa." });
+      }
+      return res.status(200).json({
+        label: true,
+        name: String(parsed.name || "Producto").slice(0, 80),
+        serving_g, per_serving, per_100,
+        serving_text: String(parsed.serving_text || "").slice(0, 80),
+        servings_per_pack: num(parsed.servings_per_pack, 1000) || null,
+      });
+    }
     if (parsed.food === false) {
       return res.status(422).json({ error: "No identifiqué comida. Prueba con otra foto o escríbela." });
     }
