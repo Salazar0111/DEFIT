@@ -268,9 +268,18 @@ export function scheduledType(profile, dateStr) {
   return "rest";
 }
 
-// Meta de un día: cambio puntual (si hay) o calendario; las cuentas con plan v1 tienen una sola meta.
-export function dayTarget(profile, dateStr, override) {
-  if (!profile.targets || (profile.plan_version || 1) < 2) return { type: null, target: profile.target_kcal || 0 };
+// Calorías del reloj (ingresadas a mano): reemplazan la estimación de ese tipo de día, con tope.
+// Sube la meta como máximo 50% de lo estimado y puede bajarla hasta anular el entreno.
+export function watchAdjust(est, watch) {
+  if (!watch || !est || est <= 0) return 0;
+  return Math.max(-est, Math.min(watch - est, Math.floor(est * 0.5)));
+}
+
+// Meta de un día: cambio puntual (si hay) o calendario, más el ajuste por reloj; las cuentas con plan v1 tienen una sola meta.
+export function dayTarget(profile, dateStr, override, watch) {
+  if (!profile.targets || (profile.plan_version || 1) < 2) return { type: null, target: profile.target_kcal || 0, adjust: 0, est: 0 };
   const type = override || scheduledType(profile, dateStr);
-  return { type, target: profile.targets[type] ?? profile.target_kcal };
+  const est = profile.burns?.[type] || 0;
+  const adjust = watchAdjust(est, watch);
+  return { type, target: (profile.targets[type] ?? profile.target_kcal) + adjust, adjust, est, watch: watch || null };
 }

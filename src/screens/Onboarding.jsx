@@ -114,6 +114,7 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
       tdee: plan.avgExp,
       target_kcal: plan.target,
       targets: plan.targets,
+      burns: plan.burn,
       protein_g: plan.protein,
       plan_version: 2,
       plan_updated_at: new Date().toISOString(),

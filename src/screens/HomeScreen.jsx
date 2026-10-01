@@ -161,7 +161,13 @@ function WeightCard({ profile, onEditPlan }) {
 // Tipo de día de hoy: descanso, entreno o pierna. Cambia la meta del día al instante.
 function DayTypePicker({ profile, dt, today }) {
   const [error, setError] = useState("");
-  const { type, target } = dt.info(today);
+  const { type, target, adjust, est, watch } = dt.info(today);
+  const [kcal, setKcal] = useState("");
+  const saveWatch = async (e) => {
+    e.preventDefault();
+    setError("");
+    try { await dt.setWatchKcal(today, kcal); setKcal(""); fx("success"); } catch (err) { setError(err.message); }
+  };
   const options = DAY_KEY_ORDER.filter((k) => k === "rest" || profile.targets?.[k] != null).map((id) => ({ id, label: DAY_KEY_LABELS[id] }));
   const pick = async (id) => {
     setError("");
@@ -193,6 +199,22 @@ function DayTypePicker({ profile, dt, today }) {
           );
         })}
       </div>
+      {est > 0 && (
+        <form onSubmit={saveWatch} style={{ display: "flex", flexDirection: "column", gap: "var(--sp-2)", paddingTop: "var(--sp-2)", borderTop: "1px solid var(--hairline)" }}>
+          <label htmlFor="watch-kcal" className="caption" style={{ fontWeight: 700 }}>Calorías del entreno según tu reloj (opcional)</label>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "var(--sp-2)" }}>
+            <div className="field"><input id="watch-kcal" type="number" inputMode="numeric" min="0" max="5000" placeholder={watch ? String(watch) : `Estimado: ${fmt(est)}`}
+              value={kcal} onChange={(e) => setKcal(e.target.value)} style={{ height: 44 }} /></div>
+            <button className="btn btn-glass" style={{ minHeight: 44 }} disabled={!kcal}>Guardar</button>
+          </div>
+          {watch > 0 && (
+            <p className="caption num">
+              Reloj: {fmt(watch)} kcal · estimado: {fmt(est)} · {adjust === 0 ? "sin ajuste" : `${adjust > 0 ? "+" : "−"}${fmt(Math.abs(adjust))} a tu meta`}
+              {" "}<button type="button" onClick={() => dt.setWatchKcal(today, 0).catch(() => {})} style={{ textDecoration: "underline", color: "var(--text)" }}>Quitar</button>
+            </p>
+          )}
+        </form>
+      )}
       {error && <p role="alert" style={{ color: "var(--danger)", fontWeight: 700, fontSize: "var(--t-small)" }}>{error}</p>}
     </section>
   );

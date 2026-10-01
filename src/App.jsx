@@ -19,6 +19,7 @@ import Medal from "./components/Medal";
 import { useChallenges } from "./lib/useChallenges";
 import { useDayTypes } from "./lib/useDayTypes";
 import { useWorkouts } from "./lib/useWorkouts";
+import { computePlanV2 } from "./lib/plan";
 import { medalById } from "./lib/medals";
 import { fx } from "./lib/feedback";
 import { avatarSrc } from "./lib/avatars";
@@ -44,6 +45,7 @@ const DEMO_PROFILE = params.get("demo") === "nuevo"
         6: { kind: "cardio", muscles: [], key: "cardio" },
       },
       targets: { rest: 1660, train: 1890, leg: 2028, cardio: 2074, cw: 1982, cwl: 2051 },
+      burns: { rest: 0, train: 230, leg: 368, cardio: 414, cw: 322, cwl: 391 },
       // ?demo&tour muestra el tutorial; ?demo&tips, las burbujas por pestaña.
       tips_seen: params.has("tour") ? [] : params.has("tips") ? ["tour"] : ["tour", "home", "food", "workout", "challenges", "profile"],
     };
@@ -116,6 +118,15 @@ function Main({ profile, tab, setTab, patchProfile, onEditPlan }) {
     patchProfile({ tips_seen });
     if (profile.id !== "demo") await supabase.from("profiles").update({ tips_seen }).eq("id", profile.id);
   };
+  // Cuentas con plan v2 anterior a las calorías del reloj: se calculan y guardan las kcal estimadas por tipo de día.
+  useEffect(() => {
+    if (profile.id === "demo" || (profile.plan_version || 1) < 2 || profile.burns) return;
+    const p = computePlanV2({ ...profile, deficit: profile.deficit || 0 });
+    if (!p) return;
+    patchProfile({ burns: p.burn });
+    supabase.from("profiles").update({ burns: p.burn }).eq("id", profile.id).then(() => {});
+  }, [profile.id, profile.plan_version, !!profile.burns]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const showTour = !seen("tour");
   const replayTour = () => patchProfile({ tips_seen: (profile.tips_seen || []).filter((k) => k !== "tour") });
 

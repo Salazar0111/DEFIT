@@ -20,6 +20,7 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan }) {
   const [changing, setChanging] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
+  const [cardioKcal, setCardioKcal] = useState("");
   const [last, setLast] = useState({});
   const [best, setBest] = useState({});
   const [newRecords, setNewRecords] = useState(null);
@@ -84,7 +85,10 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan }) {
   const finishCardio = async (s) => {
     setError("");
     try {
-      await wk.finish({ name: s.name, leg: false, durationS: (profile.session_min || 45) * 60, sets: [] });
+      const k = Number(cardioKcal) || 0;
+      await wk.finish({ name: s.name, leg: false, durationS: (profile.session_min || 45) * 60, sets: [], watchKcal: k });
+      if (k > 0) await dt.setWatchKcal(today, (dt.watch?.[today] || 0) + k).catch(() => {});
+      setCardioKcal("");
       await dt.setType(today, s.key || "cardio").catch(() => {});
       setSaved(true); setTimeout(() => setSaved(false), 4000);
     } catch (e) { setError(e.message); }
@@ -96,10 +100,12 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan }) {
     setLast(r.last); setBest(r.best);
     setSession(s);
   };
-  const finishSession = async ({ sets, durationS, records }) => {
+  const finishSession = async ({ sets, durationS, records, watchKcal }) => {
     setError("");
     try {
-      await wk.finish({ name: session.name, leg: !!session.leg, durationS, sets });
+      await wk.finish({ name: session.name, leg: !!session.leg, durationS, sets, watchKcal });
+      // El reloj del día suma lo de todas las sesiones de hoy.
+      if (watchKcal > 0) await dt.setWatchKcal(today, (dt.watch?.[today] || 0) + watchKcal).catch(() => {});
       // El día queda como entreno o pierna, y su meta se ajusta sola.
       await dt.setType(today, session.key || (session.leg ? "leg" : "train")).catch(() => {});
       setSession(null);
@@ -172,6 +178,10 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan }) {
           ) : (
             <>
               <p className="muted" style={{ display: "flex", alignItems: "center", gap: 8 }}><HeartPulse size={18} strokeWidth={1.8} /> {profile.session_min || 45} minutos de cardio.</p>
+              <div className="field">
+                <label htmlFor="cardio-kcal">Calorías según tu reloj (opcional)</label>
+                <input id="cardio-kcal" type="number" inputMode="numeric" min="0" max="5000" placeholder="Ej: 400" value={cardioKcal} onChange={(e) => setCardioKcal(e.target.value)} />
+              </div>
               <button className="btn btn-primary" style={{ minHeight: 60, fontSize: 18 }} onClick={() => finishCardio(plannedToday)}>
                 <Check size={20} strokeWidth={2.4} /> {wk.trainedToday ? "Registrar otra vez" : "Marcar cardio hecho"}
               </button>

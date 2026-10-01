@@ -20,6 +20,7 @@ export default function WorkoutSession({ session, lastSets, best = {}, onFinish,
   const [startedAt] = useState(Date.now());
   const [elapsed, setElapsed] = useState(0);
   const [confirmEnd, setConfirmEnd] = useState(false);
+  const [watchKcal, setWatchKcal] = useState("");
   const wake = useRef(null);
   const bests = useRef({ ...best });      // mejores marcas previas; se actualizan al romper un récord
   const [records, setRecords] = useState({}); // exercise_id -> { name, kg, reps }
@@ -170,10 +171,16 @@ export default function WorkoutSession({ session, lastSets, best = {}, onFinish,
                   {Object.keys(records).length > 0 && <Stat label="Récords" value={Object.keys(records).length} />}
                 </div>
               ) : <p className="muted">No has hecho ninguna serie todavía.</p>}
+              {done.length > 0 && (
+                <div className="field">
+                  <label htmlFor="gym-watch">Calorías según tu reloj (opcional)</label>
+                  <input id="gym-watch" type="number" inputMode="numeric" min="0" max="5000" placeholder="Ej: 350" value={watchKcal} onChange={(e) => setWatchKcal(e.target.value)} />
+                </div>
+              )}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--sp-2)" }}>
                 <button className="btn btn-glass" onClick={() => setConfirmEnd(false)}>Seguir</button>
                 {done.length > 0
-                  ? <button className="btn btn-primary" onClick={() => onFinish({ sets: done, durationS: elapsed, records: Object.values(records) })}>Guardar</button>
+                  ? <button className="btn btn-primary" onClick={() => onFinish({ sets: done, durationS: elapsed, records: Object.values(records), watchKcal: Number(watchKcal) || 0 })}>Guardar</button>
                   : <button className="btn btn-primary" onClick={onCancel}>Salir</button>}
               </div>
               {done.length > 0 && <button className="btn btn-text" onClick={onCancel}>Descartar entreno</button>}

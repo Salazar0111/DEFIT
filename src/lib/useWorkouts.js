@@ -89,14 +89,14 @@ export function useWorkouts(profile, patchProfile) {
     return Object.values(map).sort((a, b) => b.e1rm - a.e1rm);
   };
 
-  const finish = async ({ name, leg, durationS, sets }) => {
+  const finish = async ({ name, leg, durationS, sets, watchKcal }) => {
     if (demo) {
-      demoLogs.unshift({ id: Date.now(), day: today, name, leg, duration_s: durationS });
+      demoLogs.unshift({ id: Date.now(), day: today, name, leg, duration_s: durationS, watch_kcal: watchKcal || null });
       sets.forEach((s) => demoSets.unshift({ ...s, created_at: new Date().toISOString() }));
       setLogs([...demoLogs]);
       return;
     }
-    const { data: log, error } = await supabase.from("workout_logs").insert({ user_id: profile.id, day: today, name, leg, duration_s: durationS }).select().single();
+    const { data: log, error } = await supabase.from("workout_logs").insert({ user_id: profile.id, day: today, name, leg, duration_s: durationS, watch_kcal: watchKcal || null }).select().single();
     if (error) throw new Error("No se pudo guardar el entreno. Revisa tu conexión.");
     if (sets.length) {
       const rows = sets.map((s) => ({ log_id: log.id, user_id: profile.id, exercise_id: s.exercise_id, exercise_name: s.exercise_name, set_no: s.set_no, kg: s.kg, reps: s.reps }));
