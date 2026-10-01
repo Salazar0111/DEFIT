@@ -5,7 +5,7 @@ import { challengeTitle } from "./ChallengesScreen";
 import CalcExplainer, { Equation, dayMath } from "../components/CalcExplainer";
 import MethodExplainer from "../components/MethodExplainer";
 import { Info } from "lucide-react";
-import { MUSCLE_LABELS, MUSCLE_ORDER, cardioEquivalent, dayKeyOf, fmt, kindOfKey } from "../lib/plan";
+import { DAY_KEY_LABELS, MUSCLE_LABELS, MUSCLE_ORDER, cardioEquivalent, dayKeyOf, fmt, kindOfKey } from "../lib/plan";
 import { useFood } from "../lib/useFood";
 import { createPortal } from "react-dom";
 import Sheet from "../components/Sheet";

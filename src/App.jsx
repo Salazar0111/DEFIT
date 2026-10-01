@@ -30,7 +30,8 @@ import { challengeTitle } from "./screens/ChallengesScreen";
 // /?demo=nuevo arranca desde el cuestionario inicial.
 const params = new URLSearchParams(location.search);
 const DEMO = import.meta.env.DEV && params.has("demo");
-const DEMO_PROFILE = params.get("demo") === "nuevo"
+const V1 = params.get("demo") === "v1"; // cuenta antigua: plan v1, sin plan por día
+const DEMO_PROFILE0 = params.get("demo") === "nuevo"
   ? { id: "demo", name: "Brayan", avatar: "a1", palette: "noche-azul", onboarded: false }
   : {
       id: "demo", name: "Brayan", avatar: "a3", palette: "noche-azul", onboarded: true,
@@ -51,6 +52,10 @@ const DEMO_PROFILE = params.get("demo") === "nuevo"
       // ?demo&tour muestra el tutorial; ?demo&tips, las burbujas por pestaña.
       tips_seen: params.has("tour") ? [] : params.has("tips") ? ["tour"] : ["tour", "home", "food", "workout", "challenges", "profile"],
     };
+
+const DEMO_PROFILE = V1
+  ? { ...DEMO_PROFILE0, plan_version: 2, trains: true, train_days: [1], leg_days: [], day_plan: { 1: { key: "cw", kind: "both", muscles: ["chest", "arms"] } }, targets: { cardio: 1857, cw: 1757, cwl: 1832, leg: 1807, rest: 1407, train: 1657 }, burns: { cardio: 450, cw: 350, cwl: 425, leg: 400, rest: 0, train: 250 }, cardio: null, target_mode: "by_day", tdee: 2457, target_kcal: 1457, deficit: 1000, tips_seen: ["tour", "home", "food", "profile", "workout", "challenges"] }
+  : DEMO_PROFILE0;
 
 export default function App() {
   const [session, setSession] = useState(undefined); // undefined = cargando
