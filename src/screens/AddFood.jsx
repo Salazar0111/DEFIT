@@ -1,6 +1,6 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Camera, PenLine, ArrowRight, RotateCcw, Images, SlidersHorizontal, ChevronDown } from "lucide-react";
+import { Camera, PenLine, ArrowRight, RotateCcw, Images, SlidersHorizontal, ChevronDown, Mic, Square } from "lucide-react";
 import { estimateFood } from "../lib/supabase";
 import { MEALS, mealForNow, photoToBase64 } from "../lib/food";
 import IngredientEditor from "../components/IngredientEditor";
@@ -19,6 +19,8 @@ const DEMO_RESULT = {
   ],
 };
 
+const SpeechRec = typeof window !== "undefined" ? window.SpeechRecognition || window.webkitSpeechRecognition : null;
+
 // initial: comida ya guardada que se quiere editar (salta el paso de elegir cómo registrar).
 export default function AddFood({ onSave, demo, initial }) {
   const [adjust, setAdjust] = useState(!!initial);
@@ -31,6 +33,30 @@ export default function AddFood({ onSave, demo, initial }) {
   // Comida editable antes de guardar: nombre + ingredientes (gramos y kcal corregibles).
   const [draft, setDraft] = useState(initial ? { name: initial.name, items: fromEntry(initial), source: initial.source, portion: initial.portion } : null);
   const [saving, setSaving] = useState(false);
+  const [listening, setListening] = useState(false);
+  const recRef = useRef(null);
+  useEffect(() => () => recRef.current?.abort?.(), []);
+  // Dictado: el texto aparece en el campo para revisarlo antes de calcular.
+  const toggleMic = () => {
+    if (listening) { recRef.current?.stop(); return; }
+    setError("");
+    const rec = new SpeechRec();
+    rec.lang = "es-CO"; rec.interimResults = true; rec.continuous = false;
+    const base = query.trim();
+    rec.onresult = (e) => {
+      const said = Array.from(e.results).map((r) => r[0].transcript).join(" ").trim();
+      setQuery((base ? base + " " : "") + said);
+    };
+    rec.onerror = (e) => {
+      setListening(false);
+      setError(e.error === "not-allowed" || e.error === "service-not-allowed"
+        ? "No hay permiso para el micrófono. Actívalo en los ajustes del teléfono o escribe lo que comiste."
+        : e.error === "no-speech" ? "No te escuché. Intenta de nuevo." : "No se pudo usar el micrófono. Escribe lo que comiste.");
+    };
+    rec.onend = () => setListening(false);
+    recRef.current = rec;
+    try { rec.start(); setListening(true); } catch { setListening(false); }
+  };
   const cameraRef = useRef(null);
   const galleryRef = useRef(null);
 
@@ -157,11 +183,19 @@ export default function AddFood({ onSave, demo, initial }) {
             </div>
 
             <form onSubmit={(e) => { e.preventDefault(); if (query.trim() && !busy) run({ mode: "text", query }); }}
-              style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "var(--sp-2)" }}>
+              style={{ display: "grid", gridTemplateColumns: SpeechRec ? "1fr auto auto" : "1fr auto", gap: "var(--sp-2)" }}>
               <div className="field">
                 <input aria-label="¿Qué comiste?" value={query} onChange={(e) => setQuery(e.target.value)} maxLength={200}
-                  placeholder="O escribe lo que comiste: 2 arepas con queso" autoComplete="off" />
+                  placeholder={listening ? "Te escucho…" : "Escribe o dicta: 2 arepas con queso"} autoComplete="off" />
               </div>
+              {SpeechRec && (
+                <button type="button" className={listening ? "btn btn-primary" : "btn btn-glass"} onClick={toggleMic} disabled={busy}
+                  aria-label={listening ? "Detener dictado" : "Decir lo que comiste"} aria-pressed={listening}>
+                  {listening
+                    ? <motion.span animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 1, repeat: Infinity }} style={{ display: "grid" }}><Square size={16} strokeWidth={2.4} fill="currentColor" /></motion.span>
+                    : <Mic size={18} strokeWidth={1.9} />}
+                </button>
+              )}
               <button className="btn btn-primary" disabled={busy || !query.trim()} aria-label="Calcular">
                 <ArrowRight size={18} strokeWidth={2} />
               </button>
