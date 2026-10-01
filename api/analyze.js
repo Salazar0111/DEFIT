@@ -2,7 +2,7 @@
 // El cliente no envía prompts: solo una foto o el texto de un alimento.
 
 const MODEL = "claude-sonnet-5-5";
-const MAX_TOKENS = 900;
+const MAX_TOKENS = 2000; // un desayuno con muchos ingredientes se cortaba a medias con 900
 const DAILY_LIMIT = 40;
 const MAX_IMAGE_CHARS = 1_400_000; // base64 de una foto de ~900px
 
@@ -41,6 +41,36 @@ function buildMessage(body) {
   return null;
 }
 
+// Lee el JSON de la respuesta. Si quedó cortado (límite de tokens), recupera los ingredientes completos.
+function parseFood(text) {
+  const start = text.indexOf("{");
+  if (start < 0) return null;
+  const body = text.slice(start);
+  try { return JSON.parse(body.slice(0, body.lastIndexOf("}") + 1)); } catch { /* sigue */ }
+  const cut = body.lastIndexOf("},");
+  if (cut > 0) {
+    try { return JSON.parse(body.slice(0, cut + 1) + "]}"); } catch { /* sigue */ }
+  }
+  return null;
+}
+
+async function askModel(apiKey, content) {
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+    body: JSON.stringify({ model: MODEL, max_tokens: MAX_TOKENS, messages: [{ role: "user", content }] }),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    console.error("analyze: IA respondió", response.status, JSON.stringify(data).slice(0, 300));
+    return { error: "ai_status" };
+  }
+  const text = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("");
+  const parsed = parseFood(text);
+  if (!parsed) console.error("analyze: JSON ilegible", data.stop_reason, text.slice(0, 300));
+  return { parsed };
+}
+
 const num = (v, max) => Math.min(Math.max(Math.round(Number(v) * 10) / 10 || 0, 0), max);
 
 export default async function handler(req, res) {
@@ -70,22 +100,15 @@ export default async function handler(req, res) {
   }
 
   try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({ model: MODEL, max_tokens: MAX_TOKENS, messages: [{ role: "user", content }] }),
-    });
-    const data = await response.json();
-    if (!response.ok) return res.status(502).json({ error: "El servicio de IA no respondió bien. Intenta de nuevo." });
-
-    const text = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("");
-    const match = text.match(/\{[\s\S]*\}/);
-    const parsed = match ? JSON.parse(match[0]) : null;
-    if (!parsed || parsed.food === false) {
+    // Un reintento por si la respuesta llegó ilegible o el servicio falló un instante.
+    let r = await askModel(apiKey, content).catch((e) => { console.error("analyze: fallo de red", e?.message); return { error: "net" }; });
+    if (!r.parsed && r.error !== "ai_status") {
+      r = await askModel(apiKey, content).catch((e) => { console.error("analyze: fallo de red", e?.message); return { error: "net" }; });
+    }
+    if (r.error === "ai_status") return res.status(502).json({ error: "El servicio de IA no respondió bien. Intenta de nuevo." });
+    const parsed = r.parsed;
+    if (!parsed) return res.status(502).json({ error: "No se pudo analizar. Intenta de nuevo." });
+    if (parsed.food === false) {
       return res.status(422).json({ error: "No identifiqué comida. Prueba con otra foto o escríbela." });
     }
     const ingredients = (Array.isArray(parsed.ingredients) ? parsed.ingredients : []).slice(0, 12).map((i) => ({
@@ -102,7 +125,8 @@ export default async function handler(req, res) {
       portion: String(parsed.portion || "").slice(0, 80),
       ingredients,
     });
-  } catch {
+  } catch (e) {
+    console.error("analyze: error", e?.message);
     return res.status(502).json({ error: "No se pudo analizar. Intenta de nuevo." });
   }
 }
