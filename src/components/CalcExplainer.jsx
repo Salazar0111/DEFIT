@@ -87,6 +87,10 @@ export default function CalcExplainer({ profile, info }) {
           </Step>
         </>
       )}
+
+      <p className="caption" style={{ lineHeight: 1.5, paddingTop: "var(--sp-2)", borderTop: "1px solid var(--hairline)" }}>
+        Es una estimación basada en datos científicos (Compendio de Actividad Física 2024), no una medición. Tu reloj la afina.
+      </p>
     </div>
   );
 }

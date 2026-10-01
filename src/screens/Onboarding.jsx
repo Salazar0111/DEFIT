@@ -467,6 +467,9 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
                     <Row label="Cambio estimado" value={plan.weeklyKg === 0 ? "Peso estable" : `${plan.weeklyKg > 0 ? "+" : "−"}${Math.abs(plan.weeklyKg).toLocaleString("es-CO")} kg por semana`} last />
                   </div>
 
+                  <p className="caption" style={{ lineHeight: 1.5 }}>
+                    Es una estimación basada en fórmulas científicas (Mifflin-St Jeor y Compendio de Actividad Física 2024), no una medición. Tu cuerpo puede variar: revisa tu peso cada 2 o 3 semanas y ajusta.
+                  </p>
                   {oldTarget > 0 && (
                     <p className="caption">
                       Antes usábamos un solo factor de actividad para todo el día. Ahora separamos tu vida diaria del entrenamiento, que es más preciso y suele dar una meta más ajustada a lo que de verdad gastas.

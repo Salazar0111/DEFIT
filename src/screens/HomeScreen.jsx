@@ -3,6 +3,7 @@ import { ChevronRight, Lock, SlidersHorizontal, Swords } from "lucide-react";
 import { avatarSrc } from "../lib/avatars";
 import { challengeTitle } from "./ChallengesScreen";
 import CalcExplainer, { Equation, dayMath } from "../components/CalcExplainer";
+import MethodExplainer from "../components/MethodExplainer";
 import { Info } from "lucide-react";
 import { MUSCLE_LABELS, MUSCLE_ORDER, cardioEquivalent, dayKeyOf, fmt, kindOfKey } from "../lib/plan";
 import { useFood } from "../lib/useFood";
@@ -21,6 +22,7 @@ const ease = [0.16, 1, 0.3, 1];
 
 export default function HomeScreen({ profile, ch, dt, onEditPlan, onOpenChallenges, seen = () => true, markSeen = () => {} }) {
   const today = dayKey(new Date(), profile.timezone);
+  const [method, setMethod] = useState(false);
   const { entries } = useFood(profile, today);
   const t = totals(entries);
   const eaten = t.kcal;
@@ -79,6 +81,15 @@ export default function HomeScreen({ profile, ch, dt, onEditPlan, onOpenChalleng
         <Row label="Objetivo" value={goalText(profile)} />
         {profile.protein_g > 0 && <Row label="Proteína diaria" value={`${fmt(profile.protein_g)} g`} />}
         <Row label="Peso de partida" value={`${Number(profile.weight_kg).toLocaleString("es-CO")} kg`} last />
+        <button className="btn btn-text" style={{ minHeight: 36, fontSize: "var(--t-caption)", color: "var(--accent)", alignSelf: "flex-start", padding: 0 }} onClick={() => setMethod(true)}>
+          Cómo se estiman tus calorías
+        </button>
+        {createPortal(
+          <Sheet open={method} onClose={() => setMethod(false)} title="Cómo estimamos tus calorías">
+            {method && <MethodExplainer />}
+          </Sheet>,
+          document.body
+        )}
       </section>
 
     </div>
