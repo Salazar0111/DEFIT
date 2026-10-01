@@ -64,7 +64,7 @@ export default function App() {
     const t = params.get("tab");
     return ["home", "food", "workout", "challenges", "profile"].includes(t) ? t : "home";
   });
-  const [editingPlan, setEditingPlan] = useState(false);
+  const [editingPlan, setEditingPlan] = useState(DEMO && params.has("dias") ? "days" : false); // false | true (todo) | "days"
 
   useEffect(() => {
     if (DEMO) { setSession({ user: { id: "demo" } }); return; }
@@ -92,7 +92,8 @@ export default function App() {
   else if (!profile.onboarded || editingPlan) {
     content = (
       <Onboarding
-        key={editingPlan ? "edit" : "new"}
+        key={editingPlan ? `edit-${editingPlan}` : "new"}
+        focus={editingPlan === "days" ? "days" : null}
         profile={profile}
         edit={profile.onboarded}
         onDone={(patch) => { patchProfile(patch); setEditingPlan(false); setTab("home"); }}
@@ -100,7 +101,7 @@ export default function App() {
       />
     );
   } else {
-    content = <Main profile={profile} tab={tab} setTab={setTab} patchProfile={patchProfile} onEditPlan={() => setEditingPlan(true)} />;
+    content = <Main profile={profile} tab={tab} setTab={setTab} patchProfile={patchProfile} onEditPlan={(focus) => setEditingPlan(focus === "days" ? "days" : true)} />;
   }
 
   return (
@@ -196,8 +197,8 @@ function Main({ profile, tab, setTab, patchProfile, onEditPlan }) {
     catch (e) { setNotifMsg(e.message); }
   };
 
-  const editPlan = () => {
-    if (!ch.planLocked) return onEditPlan();
+  const editPlan = (focus) => {
+    if (!ch.planLocked) return onEditPlan(focus);
     setNotice("Tu plan está fijo mientras estés en un reto. Podrás ajustarlo cuando termine.");
     setTimeout(() => setNotice(""), 4000);
   };

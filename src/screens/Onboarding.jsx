@@ -15,8 +15,9 @@ const ease = [0.16, 1, 0.3, 1];
 // Firma del plan por día (días, tipo y músculos) para saber si cambió.
 const sig = (dp) => Object.keys(dp).sort().map((n) => `${n}:${dp[n].kind}:${[...(dp[n].muscles || [])].sort().join(",")}`).join("|");
 
+// focus = "days": solo los pasos para elegir días de entreno y qué se hace cada día.
 // edit = true: solo los pasos del plan (desde Perfil u Hoy), con opción de cancelar.
-export default function Onboarding({ profile, edit = false, onDone, onCancel }) {
+export default function Onboarding({ profile, edit = false, focus = null, onDone, onCancel }) {
   const v2 = (profile.plan_version || 1) >= 2;
   const [d, setD] = useState({
     name: profile.name || "",
@@ -29,9 +30,9 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
     body_fat: profile.body_fat ?? "",
     frame: profile.frame || null,
     lifestyle: v2 ? profile.lifestyle : null,
-    trains: v2 ? profile.trains : null,
+    trains: focus === "days" ? true : v2 ? profile.trains : null,
     // Plan por día: { dow: { kind: "weights"|"cardio"|"both", muscles: [...] } }
-    day_plan: v2 && profile.trains ? normalizeDayPlan(profile) : {},
+    day_plan: (v2 || focus === "days") && profile.trains ? normalizeDayPlan(profile) : {},
     cardio: profile.cardio || CARDIO_DEFAULT,   // trotadora: { mode: "walk"|"run", speed, incline }
     session_min: profile.session_min || 60,
     intensity: profile.intensity || "moderate",
@@ -53,7 +54,13 @@ export default function Onboarding({ profile, edit = false, onDone, onCancel }) 
   const weights = !!d.trains && trainDays.some((n) => d.day_plan[n].kind !== "cardio");
   const hasCardio = !!d.trains && trainDays.some((n) => d.day_plan[n].kind !== "weights");
 
-  const steps = [
+  const steps = focus === "days" ? [
+    "days",
+    trainDays.length > 0 && "dayplan",
+    trainDays.length > 0 && "training",
+    plan?.warnings.length > 0 && "goal",
+    "summary",
+  ].filter(Boolean) : [
     !edit && "welcome",
     "data", "lifestyle", "trains",
     d.trains && "days",

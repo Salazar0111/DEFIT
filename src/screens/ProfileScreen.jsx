@@ -107,6 +107,11 @@ export default function ProfileScreen({ profile, ch, onChange, onEditPlan, planL
           {profile.protein_g > 0 && <PlanRow label="Proteína diaria" value={`${fmt(profile.protein_g)} g`} />}
           <PlanRow label="Peso de partida" value={`${Number(profile.weight_kg).toLocaleString("es-CO")} kg`} last />
         </div>
+        {v2 && (
+          <button className="btn btn-text" style={{ minHeight: 36, fontSize: "var(--t-caption)", color: "var(--accent)", alignSelf: "flex-start", padding: 0 }} onClick={() => onEditPlan("days")}>
+            Cambiar mis días de entreno
+          </button>
+        )}
         <button className="btn btn-text" style={{ minHeight: 36, fontSize: "var(--t-caption)", color: "var(--accent)", alignSelf: "flex-start", padding: 0 }} onClick={() => setMethod(true)}>
           Cómo se estiman tus calorías
         </button>

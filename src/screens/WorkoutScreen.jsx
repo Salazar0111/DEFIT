@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
-import { Check, ChevronRight, Dumbbell, HeartPulse, Pencil, Play, RefreshCw, Shuffle, Moon } from "lucide-react";
+import { CalendarDays, Check, ChevronRight, Dumbbell, HeartPulse, Pencil, Play, RefreshCw, Shuffle, Moon } from "lucide-react";
 import { useEffect } from "react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { avatarSrc } from "../lib/avatars";
@@ -156,6 +156,9 @@ export default function WorkoutScreen({ profile, wk, dt, onEditPlan, seen = () =
             );
           })}
         </div>
+        <button className="btn btn-text" style={{ minHeight: 36, marginTop: "var(--sp-2)", fontSize: "var(--t-small)", color: "var(--accent)" }} onClick={() => onEditPlan("days")}>
+          <CalendarDays size={16} strokeWidth={1.9} /> Cambiar mis días de entreno
+        </button>
       </section>
 
       <AnimatePresence>
